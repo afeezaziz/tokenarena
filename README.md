@@ -1,4 +1,95 @@
 # Token Battles
+## Deploying with Docker
+
+This repository includes a production-ready Dockerfile that starts the app (Gunicorn). Apply database migrations with Alembic separately (outside the container or via a one-off container run).
+
+### Build
+
+```bash
+docker build -t tokenarena:latest .
+```
+
+### Run
+
+Provide your external database via `DATABASE_URL`. Example for Postgres with psycopg v3:
+
+```
+postgresql+psycopg://USER:PASS@HOST:5432/DBNAME
+```
+
+Run the container (app only; run migrations separately):
+
+```bash
+docker run --rm -p 8000:8000 \
+  --env PORT=8000 \
+  --env WORKERS=3 \
+  --env DATABASE_URL="postgresql+psycopg://user:pass@db-host:5432/tokenarena" \
+  --env SECRET_KEY="change-me" \
+  --env LIMITER_STORAGE_URI="redis://redis-host:6379" \
+  tokenarena:latest
+```
+
+Notes:
+- The container starts Gunicorn at `0.0.0.0:$PORT` (default `8000`).
+- To store avatars persistently without S3, mount a volume for `app/static/uploads/avatars`:
+  ```bash
+  docker run -v $(pwd)/uploads:/app/app/static/uploads/avatars:rw ... tokenarena:latest
+  ```
+- Prefer S3 for avatars in production; see S3 environment variables below.
+
+### Docker ignore
+
+A `.dockerignore` is included to keep images slim by excluding VCS and build caches.
+
+## Database migrations (Alembic)
+
+Alembic is configured in `alembic.ini` and `alembic/env.py`, and an initial migration exists under `alembic/versions/`.
+
+- Generate a new migration after model changes:
+  ```bash
+  alembic revision --autogenerate -m "describe changes"
+  ```
+- Apply migrations:
+  ```bash
+  alembic upgrade head
+  ```
+- Downgrade (if needed):
+  ```bash
+  alembic downgrade -1
+  ```
+
+The app reads `DATABASE_URL` for both runtime and Alembic.
+
+### Running migrations
+
+Run Alembic manually before or after deploying the updated image.
+
+Examples:
+
+Run on host (with Python installed):
+```bash
+export DATABASE_URL="postgresql+psycopg://user:pass@db-host:5432/tokenarena"
+alembic upgrade head
+```
+
+Run as a one-off command using the image (overrides CMD):
+```bash
+docker run --rm \
+  -e DATABASE_URL="postgresql+psycopg://user:pass@db-host:5432/tokenarena" \
+  tokenarena:latest \
+  alembic upgrade head
+```
+
+## Environment variables
+
+- `DATABASE_URL` — SQLAlchemy URL (e.g., `postgresql+psycopg://...`)
+- `SECRET_KEY` — set a strong value
+- `DEBUG` — `0` or `1`
+- `LIMITER_STORAGE_URI` — e.g., `redis://host:6379` (recommended in prod)
+- `SESSION_LIFETIME_SECONDS` — default 2592000 (30 days)
+- `AVATAR_MAX_BYTES` — default 2097152 (2MB)
+- `AUTO_CREATE_DB` — default `0`; when `1`, creates tables automatically on startup (dev only). Use Alembic in production.
+- S3 for avatars (optional): `S3_AVATAR_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_ENDPOINT_URL?`, `S3_PUBLIC_BASE_URL?`
 
 An engaging, informative, and entertaining market dashboard inspired by CoinGecko. Shows market stats, token holders and token counts with charts.
 
@@ -21,7 +112,8 @@ uv add flask gunicorn sqlalchemy python-dotenv
 # Seed the database with sample data
 uv run python seed.py
 
-# Run locally (Flask dev server)
+## Running locally
+ (Flask dev server)
 uv run python -c "from app import create_app; app = create_app(); app.run(debug=True)"
 
 # Or run with gunicorn

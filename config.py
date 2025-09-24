@@ -23,3 +23,5 @@ class Config:
     S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY")
     S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL")  # optional (e.g., MinIO / Cloudflare R2)
     S3_PUBLIC_BASE_URL = os.getenv("S3_PUBLIC_BASE_URL")  # optional public base URL override
+    # Optional: auto-create tables at startup (dev only). With Alembic, keep disabled.
+    AUTO_CREATE_DB = os.getenv("AUTO_CREATE_DB", "0") == "1"

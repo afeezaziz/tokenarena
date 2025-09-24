@@ -1,0 +1,29 @@
+# VCS
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.venv
+venv
+.env
+
+# OS/IDE
+.DS_Store
+.vscode
+.idea
+
+# Caches
+.mypy_cache
+.pytest_cache
+.cache
+
+# Node
+node_modules
+
+# Local uploads (optional to exclude)
+# app/static/uploads/avatars

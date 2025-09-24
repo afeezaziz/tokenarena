@@ -13,7 +13,9 @@ def create_app() -> Flask:
 
     # Initialize database engine and create tables
     init_engine(app.config["DATABASE_URL"])
-    init_db()
+    if app.config.get("AUTO_CREATE_DB"):
+        # For development only; in production use Alembic migrations
+        init_db()
 
     # Initialize rate limiter
     limiter.init_app(app)
