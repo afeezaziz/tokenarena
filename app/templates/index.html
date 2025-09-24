@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>Who wins today's Token Battles?</h1>
+  <p class="subtitle">Engaging market stats, token holders, and charts — inspired by CoinGecko, built for fun.</p>
+</section>
+
+<section class="stats-grid" id="market-stats">
+  <div class="stat-card">
+    <div class="stat-label">Total Market Cap</div>
+    <div id="stat-market-cap" class="stat-value">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">24h Volume</div>
+    <div id="stat-volume" class="stat-value">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Tokens</div>
+    <div id="stat-tokens" class="stat-value">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Total Holders</div>
+    <div id="stat-holders" class="stat-value">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Top Dominance</div>
+    <div id="stat-dominance" class="stat-value">—</div>
+  </div>
+</section>
+
+<section class="battles" id="tokens">
+  <h2>Leaderboard — Top Movers</h2>
+  <div id="top-movers" class="movers"></div>
+
+  <div class="table-tools">
+    <input id="tokens-filter" class="search-input small" type="search" placeholder="Filter tokens (symbol or name)…" autocomplete="off" />
+    <div class="tool-buttons">
+      <button class="btn" id="export-csv">Export CSV</button>
+    </div>
+    <div class="segmented" id="spark-range">
+      <div class="btn active" data-days="7">7D</div>
+      <div class="btn" data-days="30">30D</div>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="tokens-table" aria-label="Tokens">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th class="sortable" data-key="symbol">Token <span class="arrow">▼</span></th>
+          <th class="sortable" data-key="price_usd">Price <span class="arrow">▼</span></th>
+          <th id="spark-col-label">7d</th>
+          <th class="sortable" data-key="market_cap_usd">Market Cap <span class="arrow">▼</span></th>
+          <th class="sortable" data-key="holders_count">Holders <span class="arrow">▼</span></th>
+          <th class="sortable" data-key="change_24h">24h <span class="arrow">▼</span></th>
+        </tr>
+      </thead>
+      <tbody id="tokens-tbody"></tbody>
+    </table>
+  </div>
+  <div class="pagination-bar">
+    <div class="rows-select">Rows:
+      <select id="page-size">
+        <option value="10">10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+      </select>
+    </div>
+    <div class="pagination" id="tokens-pagination"></div>
+  </div>
+</section>
+
+<section class="charts" id="charts">
+  <h2>Ecosystem Charts</h2>
+  <div class="segmented" id="global-range" style="margin: 6px 0 12px;">
+    <div class="btn" data-range="7d">7D</div>
+    <div class="btn active" data-range="30d">30D</div>
+    <div class="btn" data-range="90d">90D</div>
+    <div class="btn" data-range="all">All</div>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Number of Tokens Over Time</h3>
+      <canvas id="globalTokensChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Number of Holders Over Time</h3>
+      <canvas id="globalHoldersChart"></canvas>
+    </div>
+  </div>
+</section>
+{% endblock %}

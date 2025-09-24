@@ -1,0 +1,48 @@
+{% set title = title or 'Token Battles' %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">⚔️ Token Battles</div>
+      <div class="searchbar">
+        <input id="site-search" class="search-input" type="search" placeholder="Search tokens or users…" autocomplete="off" />
+        <div id="search-results" class="search-results" hidden></div>
+      </div>
+      <nav class="nav">
+        <a href="/" class="nav-link">Home</a>
+        <a class="nav-link" href="#tokens">Tokens</a>
+        <a class="nav-link" href="#charts">Charts</a>
+      </nav>
+      <div id="auth-area"></div>
+    </div>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>Built with ❤️ for degens | Data seeded locally | Soon: LNFI scraper</div>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/search.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+  <div id="toast" class="toast" hidden></div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

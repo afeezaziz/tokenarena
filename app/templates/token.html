@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="token-page" data-symbol="{{ symbol }}">
+  <section class="hero" style="text-align:left">
+    <h1 style="margin:0"><span id="tok-symbol">{{ symbol }}</span> <span class="muted" id="tok-name"></span></h1>
+    <div class="muted" style="font-size:13px">Live metrics updated daily</div>
+  </section>
+
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Price</div>
+      <div class="stat-value" id="tok-price">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Market Cap</div>
+      <div class="stat-value" id="tok-mcap">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Holders</div>
+      <div class="stat-value" id="tok-holders">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">24h</div>
+      <div class="stat-value" id="tok-change">—</div>
+    </div>
+  </section>
+
+  <section class="charts">
+    <h2 class="section-title">Token Charts</h2>
+    <div class="segmented" id="token-range" style="margin: 6px 0 12px;">
+      <div class="btn" data-range="7d">7D</div>
+      <div class="btn active" data-range="30d">30D</div>
+      <div class="btn" data-range="90d">90D</div>
+      <div class="btn" data-range="all">All</div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Price (USD)</h3>
+        <canvas id="priceChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Holders</h3>
+        <canvas id="holdersChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="battles">
+    <h2 class="section-title">Top Holders</h2>
+    <div class="table-wrapper">
+      <table class="tokens-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>User</th>
+            <th>Quantity</th>
+            <th>Value (USD)</th>
+          </tr>
+        </thead>
+        <tbody id="top-holders"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/token.js') }}"></script>
+{% endblock %}

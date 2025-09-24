@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="user-page" data-npub="{{ npub }}">
+  <section class="hero" style="text-align:left">
+    <div style="display:flex; gap:16px; align-items:center;">
+      <div class="avatar" id="user-avatar">👤</div>
+      <div>
+        <h1 id="user-name" style="margin:0">User</h1>
+        <div class="muted" style="font-size:13px; word-break:break-all">npub: <span id="user-npub">{{ npub }}</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="stats-grid" id="user-stats">
+    <div class="stat-card">
+      <div class="stat-label">Portfolio Value</div>
+      <div class="stat-value" id="portfolio-value">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Tokens Held</div>
+      <div class="stat-value" id="tokens-held">—</div>
+    </div>
+  </section>
+
+  <section class="charts">
+    <h2 class="section-title">Portfolio Allocation</h2>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <canvas id="allocChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="battles">
+    <h2 class="section-title">Holdings</h2>
+    <div class="table-wrapper">
+      <table class="tokens-table">
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Quantity</th>
+            <th>Price</th>
+            <th>Value</th>
+            <th>Share</th>
+          </tr>
+        </thead>
+        <tbody id="holdings-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/user.js') }}"></script>
+{% endblock %}

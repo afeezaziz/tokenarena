@@ -1,0 +1,16 @@
+[project]
+name = "token-battles"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.1.2",
+    "gunicorn>=23.0.0",
+    "python-dotenv>=1.1.1",
+    "sqlalchemy>=2.0.43",
+    "coincurve>=18.0.0",
+    "flask-limiter>=3.9.0",
+    "bech32>=1.2.0",
+    "boto3>=1.35.0",
+]

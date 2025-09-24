@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="competition-page" data-slug="{{ slug }}">
+  <section class="hero" style="text-align:left">
+    <h1 id="comp-title" style="margin:0">Competition</h1>
+    <div class="muted" id="comp-dates" style="font-size:13px"></div>
+    <p class="muted" id="comp-desc"></p>
+  </section>
+
+  <section class="battles">
+    <h2 class="section-title">Leaderboard</h2>
+    <div class="table-wrapper">
+      <table class="tokens-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>User</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/competition.js') }}"></script>
+{% endblock %}

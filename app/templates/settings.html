@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="settings" id="settings">
+  <h2>Settings</h2>
+  <p class="muted">Update your profile information.</p>
+
+  <div class="panel" style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 640px;">
+    <div style="display:flex; gap:16px; align-items:center; margin-bottom: 16px;">
+      <img id="avatar_preview" src="" alt="avatar" style="width:64px; height:64px; border-radius: 50%; object-fit: cover; border:1px solid var(--border); background: var(--panel-2);" />
+      <div>
+        <input id="avatar_file" type="file" accept="image/png,image/jpeg,image/webp" />
+        <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+          <button id="upload_avatar" class="btn">Upload Avatar</button>
+          <span class="muted">PNG/JPEG/WebP up to 2MB</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label class="muted" for="display_name">Display Name</label>
+      <input id="display_name" type="text" placeholder="Your name" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:10px;" maxlength="128" />
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label class="muted" for="bio">Bio</label>
+      <textarea id="bio" placeholder="A short bio" rows="4" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:10px;" maxlength="512"></textarea>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label class="muted">Public Key</label>
+      <div id="pubkey_view" class="code" style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); border:1px solid var(--border); padding:8px; border-radius:8px; word-break: break-all;"></div>
+    </div>
+    <div style="display:flex; gap: 8px; align-items:center;">
+      <button id="save-settings" class="btn">Save</button>
+      <span id="save-status" class="muted"></span>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}
