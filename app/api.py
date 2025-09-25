@@ -8,7 +8,9 @@ import json
 import secrets
 from flask import Blueprint, jsonify, request, session, current_app
 import os
-from sqlalchemy import func, desc, or_
+from sqlalchemy import func, desc, or_, and_
+import math
+from statistics import mean, pstdev
 
 try:
     from coincurve.schnorr import verify as schnorr_verify  # type: ignore
@@ -202,6 +204,9 @@ def tokens():
     sort_dir = (request.args.get("dir", "desc") or "desc").lower()
     include_sparkline = request.args.get("sparkline") in {"1", "true", "yes"}
     days = int(request.args.get("days", 7))
+    min_mcap = float(request.args.get("min_mcap", 0) or 0)
+    min_volume = float(request.args.get("min_volume", 0) or 0)
+    metric = (request.args.get("metric", "") or "").lower()
     q_param = (request.args.get("q", "") or "").strip()
 
     # Sorting
@@ -216,17 +221,191 @@ def tokens():
     sort_col = sort_map.get(sort_key, Token.market_cap_usd)
     order_col = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
 
-    # Base filter for search
+    # Base filter for search and thresholds
     base = session.query(Token)
     if q_param:
         like = f"%{q_param.lower()}%"
         base = base.filter(or_(func.lower(Token.symbol).like(like), func.lower(Token.name).like(like)))
+    if min_mcap > 0:
+        base = base.filter((Token.market_cap_usd != None) & (Token.market_cap_usd >= min_mcap))  # noqa: E711
+    if min_volume > 0:
+        base = base.filter((Token.volume_24h_usd != None) & (Token.volume_24h_usd >= min_volume))  # noqa: E711
 
-    total = (session.query(func.count(Token.id))
-             .filter(or_(func.lower(Token.symbol).like(like), func.lower(Token.name).like(like)))
-             .scalar()) if q_param else (session.query(func.count(Token.id)).scalar())
-    total = total or 0
+    total = base.with_entities(func.count(Token.id)).scalar() or 0
 
+    # If a normalized metric is requested, compute for all filtered tokens and sort/paginate in Python
+    allowed_metrics = {"change_24h","r7","r30","r7_sharpe","holders_growth_pct_24h","share_delta_7d","turnover_pct","composite"}
+    if metric in allowed_metrics:
+        all_tokens = base.order_by(Token.id.asc()).all()
+        total = len(all_tokens)
+        # Prepare snapshot maps for all filtered tokens
+        token_ids_all = [t.id for t in all_tokens]
+        now = datetime.utcnow()
+        cut1 = now - timedelta(days=1)
+        cut7 = now - timedelta(days=7)
+        cut30 = now - timedelta(days=30)
+        snaps_1d = session.query(TokenSnapshot).filter(TokenSnapshot.token_id.in_(token_ids_all), TokenSnapshot.timestamp >= cut1).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+        snaps_7d = session.query(TokenSnapshot).filter(TokenSnapshot.token_id.in_(token_ids_all), TokenSnapshot.timestamp >= cut7).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+        snaps_30d = session.query(TokenSnapshot).filter(TokenSnapshot.token_id.in_(token_ids_all), TokenSnapshot.timestamp >= cut30).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+        by1, by7, by30 = {}, {}, {}
+        for s in snaps_1d:
+            by1.setdefault(s.token_id, []).append(s)
+        for s in snaps_7d:
+            by7.setdefault(s.token_id, []).append(s)
+        for s in snaps_30d:
+            by30.setdefault(s.token_id, []).append(s)
+        # Market cap shares
+        total_mcap_now = float(session.query(func.coalesce(func.sum(Token.market_cap_usd), 0)).scalar() or 0) or 1.0
+        early_mcap_7_by_tid = {tid: float(lst[0].market_cap_usd or 0) for tid, lst in by7.items() if lst}
+        total_early_mcap_7 = sum(early_mcap_7_by_tid.values()) or 1.0
+
+        def pct_return_from_snaps(lst):
+            if not lst or len(lst) < 2:
+                return None
+            p0 = float(lst[0].price_usd or 0)
+            p1 = float(lst[-1].price_usd or 0)
+            if p0 <= 0:
+                return None
+            return (p1 / p0 - 1.0) * 100.0
+
+        items_all = []
+        for t in all_tokens:
+            r24 = float(t.change_24h or 0.0)
+            r7 = pct_return_from_snaps(by7.get(t.id, []))
+            r30 = pct_return_from_snaps(by30.get(t.id, []))
+            sharpe = None
+            prices7 = [float(s.price_usd or 0) for s in by7.get(t.id, []) if float(s.price_usd or 0) > 0]
+            if len(prices7) >= 3 and r7 is not None:
+                lrs = []
+                for i in range(1, len(prices7)):
+                    if prices7[i-1] > 0 and prices7[i] > 0:
+                        lrs.append(math.log(prices7[i] / prices7[i-1]))
+                sigma = pstdev(lrs) if len(lrs) > 1 else 0.0
+                if sigma and sigma > 1e-9:
+                    sharpe = (r7 / 100.0) / sigma
+
+            hg = None
+            lst1 = by1.get(t.id, [])
+            if len(lst1) >= 2:
+                h0 = int(lst1[0].holders_count or 0)
+                h1 = int(lst1[-1].holders_count or 0)
+                if h0 > 0:
+                    hg = (h1 - h0) / h0 * 100.0
+                elif h1 > 0:
+                    hg = 100.0
+                else:
+                    hg = 0.0
+
+            share_now = (float(t.market_cap_usd or 0) / total_mcap_now) * 100.0 if total_mcap_now else None
+            early_mcap_t = early_mcap_7_by_tid.get(t.id)
+            early_share = (early_mcap_t / total_early_mcap_7 * 100.0) if (early_mcap_t is not None and total_early_mcap_7) else None
+            share_delta_7d = (share_now - early_share) if (share_now is not None and early_share is not None) else None
+
+            vol = float(t.volume_24h_usd or 0)
+            mcap = float(t.market_cap_usd or 0)
+            turnover = (vol / mcap * 100.0) if mcap > 0 and vol >= 0 else None
+
+            it = {
+                "id": t.id,
+                "symbol": t.symbol,
+                "name": t.name,
+                "price_usd": float(t.price_usd or 0),
+                "market_cap_usd": float(t.market_cap_usd or 0),
+                "volume_24h_usd": float(t.volume_24h_usd or 0),
+                "holders_count": int(t.holders_count or 0),
+                "change_24h": r24,
+                "last_updated": (t.last_updated.isoformat() if t.last_updated else None),
+                "r24": r24,
+                "r7": (None if r7 is None else float(r7)),
+                "r30": (None if r30 is None else float(r30)),
+                "r7_sharpe": (None if sharpe is None else float(sharpe)),
+                "holders_growth_pct_24h": (None if hg is None else float(hg)),
+                "share_t": (None if share_now is None else float(share_now)),
+                "share_delta_7d": (None if share_delta_7d is None else float(share_delta_7d)),
+                "turnover_pct": (None if turnover is None else float(turnover)),
+            }
+            items_all.append(it)
+
+        # Composite on full filtered set with winsorization
+        if items_all:
+            def percentiles(xs_sorted, p):
+                if not xs_sorted:
+                    return None
+                k = (len(xs_sorted) - 1) * p
+                f = math.floor(k)
+                c = math.ceil(k)
+                if f == c:
+                    return xs_sorted[int(k)]
+                return xs_sorted[f] * (c - k) + xs_sorted[c] * (k - f)
+
+            def winsorize(values, p=0.01):
+                vals = [v for v in values if v is not None and not math.isnan(v)]
+                if len(vals) < 3:
+                    return values
+                svals = sorted(vals)
+                lo = percentiles(svals, p)
+                hi = percentiles(svals, 1 - p)
+                out = []
+                for v in values:
+                    if v is None or math.isnan(v):
+                        out.append(v)
+                    else:
+                        out.append(min(max(v, lo), hi))
+                return out
+
+            def zlist(values):
+                xs = [v for v in values if v is not None and not math.isnan(v)]
+                if len(xs) < 2:
+                    return [0.0 for _ in values]
+                m = mean(xs)
+                s = pstdev(xs) or 1.0
+                return [0.0 if (v is None or math.isnan(v)) else (v - m) / s for v in values]
+
+            r7L = winsorize([it.get("r7") for it in items_all])
+            hgL = winsorize([it.get("holders_growth_pct_24h") for it in items_all])
+            sdL = winsorize([it.get("share_delta_7d") for it in items_all])
+            shL = winsorize([it.get("r7_sharpe") for it in items_all])
+            toL = winsorize([it.get("turnover_pct") for it in items_all])
+            zr7 = zlist(r7L); zhg = zlist(hgL); zsd = zlist(sdL); zsh = zlist(shL); zto = zlist(toL)
+            for i, it in enumerate(items_all):
+                comp = zr7[i] + 0.5*zhg[i] + zsd[i] + 0.5*zsh[i] + 0.5*zto[i]
+                it["composite"] = float(comp)
+
+        # Sort by metric and paginate
+        def keyfun(it):
+            v = it.get(metric)
+            try:
+                return float(v) if v is not None else float('-inf')
+            except Exception:
+                return float('-inf')
+        reverse = (sort_dir != 'asc')
+        items_all.sort(key=keyfun, reverse=reverse)
+        start = (page - 1) * page_size
+        end = start + page_size
+        items = items_all[start:end]
+
+        # Add sparkline for the page
+        if include_sparkline and items:
+            page_ids = [it['id'] for it in items]
+            cutoff = datetime.utcnow() - timedelta(days=days) if days > 0 else None
+            snaps_q = session.query(TokenSnapshot).filter(TokenSnapshot.token_id.in_(page_ids))
+            if cutoff is not None:
+                snaps_q = snaps_q.filter(TokenSnapshot.timestamp >= cutoff)
+            snaps_q = snaps_q.order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc())
+            spark_by_token = {}
+            for s in snaps_q.all():
+                spark_by_token.setdefault(s.token_id, []).append(float(s.price_usd or 0))
+            for it in items:
+                it['sparkline'] = spark_by_token.get(it['id'], [])
+
+        return jsonify({
+            "items": items,
+            "page": page,
+            "page_size": page_size,
+            "total": int(total),
+        })
+
+    # Default path: DB-side sort on base columns
     rows = (base.order_by(order_col)
                  .offset((page - 1) * page_size)
                  .limit(page_size)
@@ -234,33 +413,189 @@ def tokens():
 
     # Prepare sparkline data if requested
     spark_by_token = {}
-    if include_sparkline and rows:
+    if rows:
         token_ids = [t.id for t in rows]
-        cutoff = None
-        if days > 0:
-            cutoff = datetime.utcnow() - timedelta(days=days)
-        snaps_q = session.query(TokenSnapshot).filter(TokenSnapshot.token_id.in_(token_ids))
-        if cutoff is not None:
-            snaps_q = snaps_q.filter(TokenSnapshot.timestamp >= cutoff)
-        snaps_q = snaps_q.order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc())
-        for s in snaps_q.all():
-            spark_by_token.setdefault(s.token_id, []).append(float(s.price_usd or 0))
+        if include_sparkline:
+            cutoff = None
+            if days > 0:
+                cutoff = datetime.utcnow() - timedelta(days=days)
+            snaps_q = session.query(TokenSnapshot).filter(TokenSnapshot.token_id.in_(token_ids))
+            if cutoff is not None:
+                snaps_q = snaps_q.filter(TokenSnapshot.timestamp >= cutoff)
+            snaps_q = snaps_q.order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc())
+            for s in snaps_q.all():
+                spark_by_token.setdefault(s.token_id, []).append(float(s.price_usd or 0))
+
+        # Normalized metrics (per returned page)
+        now = datetime.utcnow()
+        cut1 = now - timedelta(days=1)
+        cut7 = now - timedelta(days=7)
+        cut30 = now - timedelta(days=30)
+
+        snaps_1d = session.query(TokenSnapshot).filter(
+            TokenSnapshot.token_id.in_(token_ids), TokenSnapshot.timestamp >= cut1
+        ).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+        snaps_7d = session.query(TokenSnapshot).filter(
+            TokenSnapshot.token_id.in_(token_ids), TokenSnapshot.timestamp >= cut7
+        ).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+        snaps_30d = session.query(TokenSnapshot).filter(
+            TokenSnapshot.token_id.in_(token_ids), TokenSnapshot.timestamp >= cut30
+        ).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+
+        by1, by7, by30 = {}, {}, {}
+        for s in snaps_1d:
+            by1.setdefault(s.token_id, []).append(s)
+        for s in snaps_7d:
+            by7.setdefault(s.token_id, []).append(s)
+        for s in snaps_30d:
+            by30.setdefault(s.token_id, []).append(s)
+
+        # Total market cap now across all tokens (for market share)
+        total_mcap_now = float(session.query(func.coalesce(func.sum(Token.market_cap_usd), 0)).scalar() or 0) or 1.0
+
+        # Early 7d total market cap (approx over returned ids only to avoid heavy global scan)
+        early_mcap_7_by_tid = {}
+        for tid, lst in by7.items():
+            if lst:
+                early_mcap_7_by_tid[tid] = float(lst[0].market_cap_usd or 0)
+        total_early_mcap_7 = sum(early_mcap_7_by_tid.values()) or 1.0
 
     items = []
     for t in rows:
+        # Compute returns helpers
+        def pct_return_from_snaps(lst):
+            if not lst or len(lst) < 2:
+                return None
+            p0 = float(lst[0].price_usd or 0)
+            p1 = float(lst[-1].price_usd or 0)
+            if p0 <= 0:
+                return None
+            return (p1 / p0 - 1.0) * 100.0
+
+        r24 = float(t.change_24h or 0.0)
+        r7 = pct_return_from_snaps(by7.get(t.id, []))
+        r30 = pct_return_from_snaps(by30.get(t.id, []))
+
+        # r7 Sharpe-like (return divided by stdev of log returns in window)
+        sharpe = None
+        lst7 = by7.get(t.id, [])
+        prices7 = [float(s.price_usd or 0) for s in lst7 if float(s.price_usd or 0) > 0]
+        if len(prices7) >= 3 and r7 is not None:
+            lrs = []
+            for i in range(1, len(prices7)):
+                if prices7[i-1] > 0 and prices7[i] > 0:
+                    lrs.append(math.log(prices7[i] / prices7[i-1]))
+            sigma = pstdev(lrs) if len(lrs) > 1 else 0.0
+            if sigma and sigma > 1e-9:
+                sharpe = (r7 / 100.0) / sigma
+
+        # Holders growth 24h
+        hg = None
+        lst1 = by1.get(t.id, [])
+        if len(lst1) >= 2:
+            h0 = int(lst1[0].holders_count or 0)
+            h1 = int(lst1[-1].holders_count or 0)
+            if h0 > 0:
+                hg = (h1 - h0) / h0 * 100.0
+            elif h1 > 0:
+                hg = 100.0
+            else:
+                hg = 0.0
+
+        # Market share now and delta 7d (page-scoped early total for safety)
+        share_now = (float(t.market_cap_usd or 0) / total_mcap_now) * 100.0 if total_mcap_now else None
+        early_mcap_t = early_mcap_7_by_tid.get(t.id)
+        early_share = (early_mcap_t / total_early_mcap_7 * 100.0) if (early_mcap_t is not None and total_early_mcap_7) else None
+        share_delta_7d = (share_now - early_share) if (share_now is not None and early_share is not None) else None
+
+        # Turnover (Volume/MarketCap)
+        vol = float(t.volume_24h_usd or 0)
+        mcap = float(t.market_cap_usd or 0)
+        turnover = (vol / mcap * 100.0) if mcap > 0 and vol >= 0 else None
+
         item = {
             "id": t.id,
             "symbol": t.symbol,
             "name": t.name,
             "price_usd": float(t.price_usd or 0),
             "market_cap_usd": float(t.market_cap_usd or 0),
+            "volume_24h_usd": float(t.volume_24h_usd or 0),
             "holders_count": int(t.holders_count or 0),
             "change_24h": float(t.change_24h or 0),
             "last_updated": (t.last_updated.isoformat() if t.last_updated else None),
+            # Normalized metrics
+            "r24": r24,
+            "r7": (None if r7 is None else float(r7)),
+            "r30": (None if r30 is None else float(r30)),
+            "r7_sharpe": (None if sharpe is None else float(sharpe)),
+            "holders_growth_pct_24h": (None if hg is None else float(hg)),
+            "share_t": (None if share_now is None else float(share_now)),
+            "share_delta_7d": (None if share_delta_7d is None else float(share_delta_7d)),
+            "turnover_pct": (None if turnover is None else float(turnover)),
         }
         if include_sparkline:
             item["sparkline"] = spark_by_token.get(t.id, [])
         items.append(item)
+
+    # Compute composite z-score over current page (best-effort; not global)
+    if items:
+        def percentiles(xs_sorted, p):
+            if not xs_sorted:
+                return None
+            k = (len(xs_sorted) - 1) * p
+            f = math.floor(k)
+            c = math.ceil(k)
+            if f == c:
+                return xs_sorted[int(k)]
+            return xs_sorted[f] * (c - k) + xs_sorted[c] * (k - f)
+
+        def winsorize(values, p=0.01):
+            vals = [v for v in values if v is not None and not math.isnan(v)]
+            if len(vals) < 3:
+                return values
+            svals = sorted(vals)
+            lo = percentiles(svals, p)
+            hi = percentiles(svals, 1 - p)
+            out = []
+            for v in values:
+                if v is None or math.isnan(v):
+                    out.append(v)
+                else:
+                    out.append(min(max(v, lo), hi))
+            return out
+
+        def zscores(values):
+            xs = [v for v in values if v is not None and not math.isnan(v)]
+            if len(xs) < 2:
+                return {i: 0.0 for i in range(len(values))}
+            m = mean(xs)
+            s = pstdev(xs) or 1.0
+            out = {}
+            for i, v in enumerate(values):
+                out[i] = 0.0 if (v is None or math.isnan(v)) else (v - m) / s
+            return out
+
+        r7_list = [it.get("r7") for it in items]
+        hg_list = [it.get("holders_growth_pct_24h") for it in items]
+        sd_list = [it.get("share_delta_7d") for it in items]
+        sh_list = [it.get("r7_sharpe") for it in items]
+        to_list = [it.get("turnover_pct") for it in items]
+
+        # Winsorize before z-scoring to tame outliers
+        r7_list = winsorize(r7_list)
+        hg_list = winsorize(hg_list)
+        sd_list = winsorize(sd_list)
+        sh_list = winsorize(sh_list)
+        to_list = winsorize(to_list)
+
+        zr7 = zscores(r7_list)
+        zhg = zscores(hg_list)
+        zsd = zscores(sd_list)
+        zsh = zscores(sh_list)
+        zto = zscores(to_list)
+        for i, it in enumerate(items):
+            composite = zr7.get(i, 0.0) + 0.5 * zhg.get(i, 0.0) + zsd.get(i, 0.0) + 0.5 * zsh.get(i, 0.0) + 0.5 * zto.get(i, 0.0)
+            it["composite"] = float(composite)
 
     return jsonify({
         "items": items,
@@ -471,20 +806,185 @@ def top_movers():
     session = get_session()
     limit = int(request.args.get("limit", 5))
     limit = min(max(limit, 1), 50)
-    rows = (
-        session.query(Token)
-        .order_by(func.abs(Token.change_24h).desc())
-        .limit(limit)
-        .all()
-    )
-    out = []
-    for t in rows:
-        out.append({
+    metric = (request.args.get("metric", "change_24h") or "change_24h").lower()
+    min_mcap = float(request.args.get("min_mcap", 0) or 0)
+    min_volume = float(request.args.get("min_volume", 0) or 0)
+
+    # Fetch all tokens for metric computation
+    q = session.query(Token)
+    if min_mcap > 0:
+        q = q.filter((Token.market_cap_usd != None) & (Token.market_cap_usd >= min_mcap))  # noqa: E711
+    if min_volume > 0:
+        q = q.filter((Token.volume_24h_usd != None) & (Token.volume_24h_usd >= min_volume))  # noqa: E711
+    toks = q.all()
+    if not toks:
+        return jsonify([])
+
+    token_ids = [t.id for t in toks]
+    now = datetime.utcnow()
+    cut1 = now - timedelta(days=1)
+    cut7 = now - timedelta(days=7)
+    cut30 = now - timedelta(days=30)
+
+    # Preload snapshots
+    snaps_1d = session.query(TokenSnapshot).filter(
+        TokenSnapshot.token_id.in_(token_ids), TokenSnapshot.timestamp >= cut1
+    ).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+    snaps_7d = session.query(TokenSnapshot).filter(
+        TokenSnapshot.token_id.in_(token_ids), TokenSnapshot.timestamp >= cut7
+    ).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+    snaps_30d = session.query(TokenSnapshot).filter(
+        TokenSnapshot.token_id.in_(token_ids), TokenSnapshot.timestamp >= cut30
+    ).order_by(TokenSnapshot.token_id.asc(), TokenSnapshot.timestamp.asc()).all()
+
+    by1, by7, by30 = {}, {}, {}
+    for s in snaps_1d:
+        by1.setdefault(s.token_id, []).append(s)
+    for s in snaps_7d:
+        by7.setdefault(s.token_id, []).append(s)
+    for s in snaps_30d:
+        by30.setdefault(s.token_id, []).append(s)
+
+    # Market share (global now and early 7d)
+    total_mcap_now = float(session.query(func.coalesce(func.sum(Token.market_cap_usd), 0)).scalar() or 0) or 1.0
+    early_mcap_7_by_tid = {}
+    for tid, lst in by7.items():
+        if lst:
+            early_mcap_7_by_tid[tid] = float(lst[0].market_cap_usd or 0)
+    total_early_mcap_7 = sum(early_mcap_7_by_tid.values()) or 1.0
+
+    # Helpers
+    def pct_return_from_snaps(lst):
+        if not lst or len(lst) < 2:
+            return None
+        p0 = float(lst[0].price_usd or 0)
+        p1 = float(lst[-1].price_usd or 0)
+        if p0 <= 0:
+            return None
+        return (p1 / p0 - 1.0) * 100.0
+
+    # Compute per-token metrics
+    items = []
+    for t in toks:
+        r24 = float(t.change_24h or 0.0)
+        r7 = pct_return_from_snaps(by7.get(t.id, []))
+        r30 = pct_return_from_snaps(by30.get(t.id, []))
+
+        # r7 sharpe-like
+        sharpe = None
+        prices7 = [float(s.price_usd or 0) for s in by7.get(t.id, []) if float(s.price_usd or 0) > 0]
+        if len(prices7) >= 3 and r7 is not None:
+            lrs = []
+            for i in range(1, len(prices7)):
+                if prices7[i-1] > 0 and prices7[i] > 0:
+                    lrs.append(math.log(prices7[i]/prices7[i-1]))
+            sigma = pstdev(lrs) if len(lrs) > 1 else 0.0
+            if sigma and sigma > 1e-9:
+                sharpe = (r7 / 100.0) / sigma
+
+        # holders growth 24h
+        hg = None
+        lst1 = by1.get(t.id, [])
+        if len(lst1) >= 2:
+            h0 = int(lst1[0].holders_count or 0)
+            h1 = int(lst1[-1].holders_count or 0)
+            if h0 > 0:
+                hg = (h1 - h0) / h0 * 100.0
+            elif h1 > 0:
+                hg = 100.0
+            else:
+                hg = 0.0
+
+        share_now = (float(t.market_cap_usd or 0) / total_mcap_now) * 100.0 if total_mcap_now else None
+        early_mcap_t = early_mcap_7_by_tid.get(t.id)
+        early_share = (early_mcap_t / total_early_mcap_7 * 100.0) if (early_mcap_t is not None and total_early_mcap_7) else None
+        share_delta_7d = (share_now - early_share) if (share_now is not None and early_share is not None) else None
+
+        # turnover
+        vol = float(t.volume_24h_usd or 0)
+        mcap = float(t.market_cap_usd or 0)
+        turnover = (vol / mcap * 100.0) if mcap > 0 and vol >= 0 else None
+
+        items.append({
             "symbol": t.symbol,
             "name": t.name,
-            "change_24h": float(t.change_24h or 0),
+            "volume_24h_usd": float(t.volume_24h_usd or 0),
+            "change_24h": r24,
+            "r7": (None if r7 is None else float(r7)),
+            "r30": (None if r30 is None else float(r30)),
+            "r7_sharpe": (None if sharpe is None else float(sharpe)),
+            "holders_growth_pct_24h": (None if hg is None else float(hg)),
+            "share_delta_7d": (None if share_delta_7d is None else float(share_delta_7d)),
+            "turnover_pct": (None if turnover is None else float(turnover)),
         })
-    return jsonify(out)
+
+    # Composite z-score across all tokens
+    if items:
+        def percentiles(xs_sorted, p):
+            if not xs_sorted:
+                return None
+            k = (len(xs_sorted) - 1) * p
+            f = math.floor(k)
+            c = math.ceil(k)
+            if f == c:
+                return xs_sorted[int(k)]
+            return xs_sorted[f] * (c - k) + xs_sorted[c] * (k - f)
+
+        def winsorize(values, p=0.01):
+            vals = [v for v in values if v is not None and not math.isnan(v)]
+            if len(vals) < 3:
+                return values
+            svals = sorted(vals)
+            lo = percentiles(svals, p)
+            hi = percentiles(svals, 1 - p)
+            out = []
+            for v in values:
+                if v is None or math.isnan(v):
+                    out.append(v)
+                else:
+                    out.append(min(max(v, lo), hi))
+            return out
+
+        def zscores(values):
+            xs = [v for v in values if v is not None and not math.isnan(v)]
+            if len(xs) < 2:
+                return [0.0 for _ in values]
+            m = mean(xs)
+            s = pstdev(xs) or 1.0
+            return [0.0 if (v is None or math.isnan(v)) else (v - m) / s for v in values]
+
+        r7_list = [it.get("r7") for it in items]
+        hg_list = [it.get("holders_growth_pct_24h") for it in items]
+        sd_list = [it.get("share_delta_7d") for it in items]
+        sh_list = [it.get("r7_sharpe") for it in items]
+        to_list = [it.get("turnover_pct") for it in items]
+
+        r7_list = winsorize(r7_list)
+        hg_list = winsorize(hg_list)
+        sd_list = winsorize(sd_list)
+        sh_list = winsorize(sh_list)
+        to_list = winsorize(to_list)
+
+        zr7 = zscores(r7_list)
+        zhg = zscores(hg_list)
+        zsd = zscores(sd_list)
+        zsh = zscores(sh_list)
+        zto = zscores(to_list)
+        for i, it in enumerate(items):
+            comp = zr7[i] + 0.5*zhg[i] + zsd[i] + 0.5*zsh[i] + 0.5*zto[i]
+            it["composite"] = float(comp)
+
+    # Pick metric values and sort
+    metric_key = metric if metric in {"change_24h","r7","r30","r7_sharpe","holders_growth_pct_24h","share_delta_7d","turnover_pct","composite"} else "change_24h"
+    filtered = [it for it in items if it.get(metric_key) is not None and not math.isnan(float(it.get(metric_key)))]
+    filtered.sort(key=lambda x: abs(float(x.get(metric_key))), reverse=True if metric_key in {"change_24h","r7","r30","holders_growth_pct_24h","share_delta_7d","composite","r7_sharpe"} else True)
+    top = filtered[:limit]
+
+    # Respond with metric value included
+    for it in top:
+        it["metric"] = metric_key
+        it["value"] = float(it.get(metric_key) or 0.0)
+    return jsonify(top)
 
 
 @api_bp.get("/chart/global")

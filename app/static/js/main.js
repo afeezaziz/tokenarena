@@ -10,6 +10,11 @@ let pageSize = parseInt(localStorage.getItem('tb_tokens_page_size') || '10', 10)
 let totalCount = 0;
 let tokensQuery = localStorage.getItem('tb_tokens_query') || '';
 let sparkDays = parseInt(localStorage.getItem('tb_spark_days') || '7', 10);
+let moversMetric = localStorage.getItem('tb_movers_metric') || 'change_24h';
+let tableMetric = localStorage.getItem('tb_table_metric') || 'change_24h';
+let sortByMetric = (localStorage.getItem('tb_sort_metric') || '0') === '1';
+let minMcap = localStorage.getItem('tb_min_mcap') || '';
+let minVolume = localStorage.getItem('tb_min_volume') || '';
 
 function fmtCurrency(n) {
   try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n); } catch { return `$${Number(n).toLocaleString()}`; }
@@ -18,6 +23,39 @@ function fmtNumber(n) {
   try { return new Intl.NumberFormat('en-US').format(n); } catch { return Number(n).toLocaleString(); }
 }
 function fmtPct(n){ return `${(Number(n) >= 0 ? '+' : '')}${Number(n).toFixed(2)}%`; }
+
+function metricLabel(m){
+  switch (m) {
+    case 'change_24h': return '24h';
+    case 'r7': return '7D';
+    case 'r30': return '30D';
+    case 'r7_sharpe': return 'Sharpe 7D';
+    case 'holders_growth_pct_24h': return 'Holders 24h';
+    case 'share_delta_7d': return 'Share Δ 7D';
+    case 'composite': return 'Composite';
+    default: return 'Metric';
+  }
+}
+
+function metricValue(t, m){
+  if (!t) return null;
+  switch (m){
+    case 'change_24h': return t.change_24h;
+    case 'r7': return t.r7;
+    case 'r30': return t.r30;
+    case 'r7_sharpe': return t.r7_sharpe;
+    case 'holders_growth_pct_24h': return t.holders_growth_pct_24h;
+    case 'share_delta_7d': return t.share_delta_7d;
+    case 'composite': return t.composite;
+    default: return null;
+  }
+}
+
+function formatMetric(m, v){
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return '—';
+  if (m === 'r7_sharpe' || m === 'composite') return Number(v).toFixed(2);
+  return fmtPct(v);
+}
 
 function setSkeletonStats(active){
   const ids = ['stat-market-cap','stat-volume','stat-tokens','stat-holders','stat-dominance'];
@@ -62,6 +100,7 @@ function renderTokensTable(){
       <td>${sparklineSVG(t.sparkline || [])}</td>
       <td>${fmtCurrency(t.market_cap_usd)}</td>
       <td>${fmtNumber(t.holders_count)}</td>
+      <td class="metric-cell">${formatMetric(tableMetric, metricValue(t, tableMetric))}</td>
       <td style="color:${t.change_24h>=0?'#00d1b2':'#ff5c7c'}">${fmtPct(t.change_24h)}</td>
     `;
     tbody.appendChild(tr);
@@ -75,29 +114,53 @@ function bindTokensTableSorting(){
 
   function updateIndicators(){
     headers.forEach(h => {
-      h.classList.toggle('active', h.dataset.key === sortKey);
+      const isMetric = h.dataset.metric === 'metric';
+      const active = isMetric ? sortByMetric : (h.dataset.key === sortKey);
+      h.classList.toggle('active', active);
       const arrow = h.querySelector('.arrow');
-      if (arrow){ arrow.textContent = (h.dataset.key === sortKey && sortDir === 'asc') ? '▲' : '▼'; }
+      if (arrow){
+        const asc = sortDir === 'asc';
+        arrow.textContent = active && asc ? '▲' : '▼';
+      }
     });
   }
   updateIndicators();
 
   headers.forEach(h => {
     h.addEventListener('click', () => {
-      const key = h.dataset.key;
-      if (sortKey === key) {
-        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      if (h.dataset.metric === 'metric'){
+        // toggle metric sorting locally
+        sortByMetric = !sortByMetric || (sortKey !== null); // enable metric sorting
+        // If already sorting by metric, toggle direction
+        if (sortByMetric && h.classList.contains('active')){
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortDir = 'desc';
+        }
+        localStorage.setItem('tb_sort_metric', sortByMetric ? '1' : '0');
+        localStorage.setItem('tb_sort_dir', sortDir);
+        sortTokensDataByMetric();
+        updateIndicators();
+        renderTokensTable();
       } else {
-        sortKey = key;
-        sortDir = (key === 'symbol') ? 'asc' : 'desc';
+        const key = h.dataset.key;
+        if (!key) return;
+        sortByMetric = false;
+        if (sortKey === key) {
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortKey = key;
+          sortDir = (key === 'symbol') ? 'asc' : 'desc';
+        }
+        localStorage.setItem('tb_sort_metric', '0');
+        localStorage.setItem('tb_sort_key', sortKey);
+        localStorage.setItem('tb_sort_dir', sortDir);
+        updateIndicators();
+        // reset to first page when sorting changes
+        currentPage = 1;
+        localStorage.setItem('tb_tokens_page', String(currentPage));
+        fetchTokensData();
       }
-      localStorage.setItem('tb_sort_key', sortKey);
-      localStorage.setItem('tb_sort_dir', sortDir);
-      updateIndicators();
-      // reset to first page when sorting changes
-      currentPage = 1;
-      localStorage.setItem('tb_tokens_page', String(currentPage));
-      fetchTokensData();
     });
   });
 
@@ -194,7 +257,7 @@ async function fetchTokensData(){
     tbody.innerHTML = '';
     for (let i=0;i<10;i++){
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="7"><div class="skeleton" style="height:16px; width:100%"></div></td>';
+      tr.innerHTML = '<td colspan="8"><div class="skeleton" style="height:16px; width:100%"></div></td>';
       tbody.appendChild(tr);
     }
   }
@@ -208,10 +271,14 @@ async function fetchTokensData(){
     days: String(sparkDays),
   });
   if (tokensQuery) params.set('q', tokensQuery);
+  if (minMcap && !Number.isNaN(Number(minMcap))) params.set('min_mcap', String(minMcap));
+  if (minVolume && !Number.isNaN(Number(minVolume))) params.set('min_volume', String(minVolume));
+  if (sortByMetric && tableMetric){ params.set('metric', tableMetric); }
   const res = await fetch(`/api/tokens?${params.toString()}`);
   const data = await res.json();
   tokensData = data.items || [];
   totalCount = data.total || 0;
+  if (sortByMetric) sortTokensDataByMetric();
   renderTokensTable();
   renderPagination();
 }
@@ -220,15 +287,20 @@ async function loadTopMovers(){
   const moversWrap = document.getElementById('top-movers');
   if (!moversWrap) return;
   moversWrap.innerHTML = '';
-  const res = await fetch('/api/top-movers?limit=5');
+  const mp = new URLSearchParams({ limit: '5', metric: moversMetric });
+  if (minMcap && !Number.isNaN(Number(minMcap))) mp.set('min_mcap', String(minMcap));
+  if (minVolume && !Number.isNaN(Number(minVolume))) mp.set('min_volume', String(minVolume));
+  const res = await fetch(`/api/top-movers?${mp.toString()}`);
   const movers = await res.json();
   movers.forEach(m => {
     const div = document.createElement('div');
-    div.className = `mover ${m.change_24h>=0?'up':'down'}`;
+    const val = (m.value !== undefined ? m.value : m.change_24h);
+    const up = Number(val) >= 0;
+    div.className = `mover ${up?'up':'down'}`;
     div.innerHTML = `
       <div class="sym">${m.symbol}</div>
       <div class="name">${m.name}</div>
-      <div class="pct">${fmtPct(m.change_24h)}</div>
+      <div class="pct">${formatMetric(m.metric || moversMetric, val)}</div>
     `;
     moversWrap.appendChild(div);
   });
@@ -317,6 +389,48 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   await loadGlobalCharts(currentRange);
 
+  // movers metric segmented
+  const moversSeg = document.getElementById('movers-metric');
+  if (moversSeg){
+    const btnStored = moversSeg.querySelector(`.btn[data-metric="${moversMetric}"]`);
+    if (btnStored){
+      moversSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btnStored.classList.add('active');
+    }
+    moversSeg.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.btn');
+      if (!btn) return;
+      moversSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      moversMetric = btn.dataset.metric;
+      localStorage.setItem('tb_movers_metric', moversMetric);
+      await loadTopMovers();
+    });
+  }
+
+  // table metric segmented
+  const tableSeg = document.getElementById('table-metric');
+  const metricLabelEl = document.getElementById('metric-col-label');
+  if (metricLabelEl) metricLabelEl.innerHTML = `${metricLabel(tableMetric)} <span class="arrow">▼</span>`;
+  if (tableSeg){
+    const btnStored = tableSeg.querySelector(`.btn[data-metric="${tableMetric}"]`);
+    if (btnStored){
+      tableSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btnStored.classList.add('active');
+    }
+    tableSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn');
+      if (!btn) return;
+      tableSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      tableMetric = btn.dataset.metric;
+      localStorage.setItem('tb_table_metric', tableMetric);
+      if (metricLabelEl) metricLabelEl.innerHTML = `${metricLabel(tableMetric)} <span class="arrow">▼</span>`;
+      if (sortByMetric) sortTokensDataByMetric();
+      renderTokensTable();
+    });
+  }
+
   // page-size selector
   const sel = document.getElementById('page-size');
   if (sel){
@@ -349,6 +463,24 @@ window.addEventListener('DOMContentLoaded', async () => {
       }, 250);
     });
   }
+
+  // threshold inputs
+  const minMcapEl = document.getElementById('min-mcap');
+  const minVolEl = document.getElementById('min-volume');
+  if (minMcapEl){ minMcapEl.value = minMcap; }
+  if (minVolEl){ minVolEl.value = minVolume; }
+  const debounce = (fn, d=300) => { let id; return (...a)=>{ clearTimeout(id); id=setTimeout(()=>fn(...a), d); }; };
+  const onThresh = debounce(() => {
+    minMcap = (minMcapEl && minMcapEl.value) ? minMcapEl.value : '';
+    minVolume = (minVolEl && minVolEl.value) ? minVolEl.value : '';
+    localStorage.setItem('tb_min_mcap', minMcap);
+    localStorage.setItem('tb_min_volume', minVolume);
+    currentPage = 1; localStorage.setItem('tb_tokens_page', '1');
+    fetchTokensData();
+    loadTopMovers();
+  }, 300);
+  if (minMcapEl){ minMcapEl.addEventListener('input', onThresh); }
+  if (minVolEl){ minVolEl.addEventListener('input', onThresh); }
 
   // sparkline range toggle
   const spark = document.getElementById('spark-range');
@@ -384,10 +516,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         price_usd: t.price_usd,
         market_cap_usd: t.market_cap_usd,
         holders_count: t.holders_count,
+        metric: metricLabel(tableMetric),
+        metric_value: formatMetric(tableMetric, metricValue(t, tableMetric)),
         change_24h: t.change_24h,
       }));
-      const headers = ['Rank','Symbol','Name','PriceUSD','MarketCapUSD','Holders','Change24h'];
-      const csv = [headers.join(',')].concat(rows.map(r => [r.rank,r.symbol,r.name,r.price_usd,r.market_cap_usd,r.holders_count,r.change_24h].join(','))).join('\n');
+      const headers = ['Rank','Symbol','Name','PriceUSD','MarketCapUSD','Holders','Metric','MetricVal','Change24h'];
+      const csv = [headers.join(',')].concat(rows.map(r => [r.rank,r.symbol,r.name,r.price_usd,r.market_cap_usd,r.holders_count,r.metric,r.metric_value,r.change_24h].join(','))).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -401,3 +535,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
+function sortTokensDataByMetric(){
+  const m = tableMetric;
+  const asc = sortDir === 'asc';
+  tokensData.sort((a, b) => {
+    const va = Number(metricValue(a, m));
+    const vb = Number(metricValue(b, m));
+    const aa = Number.isFinite(va) ? va : -Infinity;
+    const bb = Number.isFinite(vb) ? vb : -Infinity;
+    return asc ? (aa - bb) : (bb - aa);
+  });
+}

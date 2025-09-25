@@ -59,6 +59,7 @@ class Token(Base):
 
     price_usd = Column(Numeric(18, 8), default=Decimal("0"))
     market_cap_usd = Column(Numeric(20, 2), default=Decimal("0"))
+    volume_24h_usd = Column(Numeric(20, 2), default=Decimal("0"))
     holders_count = Column(Integer, default=0)
     change_24h = Column(Float, default=0.0)  # percent change
 
@@ -77,6 +78,7 @@ class TokenSnapshot(Base):
 
     price_usd = Column(Numeric(18, 8), default=Decimal("0"))
     market_cap_usd = Column(Numeric(20, 2), default=Decimal("0"))
+    volume_24h_usd = Column(Numeric(20, 2), default=Decimal("0"))
     holders_count = Column(Integer, default=0)
 
     token = relationship("Token", back_populates="snapshots")
