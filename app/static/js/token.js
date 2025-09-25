@@ -55,6 +55,11 @@ async function loadTokenPage(){
     });
   }
   await loadCharts(symbol, currentRange);
+
+  // Re-render charts when theme changes to adapt tick/grid/legend colors
+  window.addEventListener('themechange', () => {
+    loadCharts(symbol, currentRange);
+  });
 }
 
 async function loadCharts(symbol, range){

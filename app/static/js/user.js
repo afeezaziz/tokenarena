@@ -62,6 +62,13 @@ async function loadUserPage(){
         plugins: { legend: { labels: { color: (document.body.classList.contains('arena') ? '#e5e7eb' : '#0f172a') } } }
       }
     });
+    // Update legend colors when theme toggles
+    window.addEventListener('themechange', () => {
+      if (!allocChart) return;
+      const legendColor = document.body.classList.contains('arena') ? '#e5e7eb' : '#0f172a';
+      allocChart.options.plugins.legend.labels.color = legendColor;
+      allocChart.update();
+    });
   } catch (e) {
     console.error(e);
   }

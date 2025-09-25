@@ -120,20 +120,64 @@ body.arena .segmented .btn.active{
   border-color: rgba(139,92,246,0.4);
 }
 
-/* Tables */
 body.arena .tokens-table thead{ background: rgba(139,92,246,0.06); }
 body.arena .tokens-table th,
 body.arena .tokens-table td{ border-bottom-color: rgba(148,163,184,0.16); }
 body.arena .tokens-table tbody tr:hover{ background: rgba(139,92,246,0.08); }
 
-/* Pagination */
-body.arena .page-btn{ background: rgba(255,255,255,0.04); border-color: var(--border); color: var(--text); }
-body.arena .page-btn:hover{ background: rgba(139,92,246,0.12); }
-body.arena .page-btn.active{
-  background: linear-gradient(90deg, #8b5cf6, #22d3ee);
-  border-color: transparent;
-  color: #0b0f19;
-}
+  /* Pagination */
+  body.arena .page-btn{ background: rgba(255,255,255,0.04); border-color: var(--border); color: var(--text); }
+  body.arena .page-btn:hover{ background: rgba(139,92,246,0.12); }
+  body.arena .page-btn.active{
+    background: linear-gradient(90deg, #8b5cf6, #22d3ee);
+    border-color: transparent;
+    color: #0b0f19;
+  }
 
-/* Toast */
-body.arena .toast{ background: rgba(17,24,39,0.96); border-color: rgba(255,255,255,0.08); }
+  /* Toast */
+  body.arena .toast{ background: rgba(17,24,39,0.96); border-color: rgba(255,255,255,0.08); }
+
+  /* Accessibility: focus outlines */
+  body.arena .btn:focus-visible,
+  body.arena .nav-link:focus-visible,
+  body.arena .page-btn:focus-visible,
+  body.arena .segmented .btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.3), 0 0 0 1px rgba(139,92,246,0.6) inset;
+  }
+
+  /* Card polish: subtle elevation on hover */
+  body.arena .stat-card:hover,
+  body.arena .chart-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 42px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition: transform 160ms ease, box-shadow 200ms ease;
+  }
+
+  /* Theme toggle styling */
+  body.arena #theme-toggle,
+  body.arena .theme-toggle{
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    border: 1px solid rgba(167,139,250,0.35);
+    color: var(--text);
+  }
+  body.arena #theme-toggle:hover,
+  body.arena .theme-toggle:hover{
+    background: linear-gradient(90deg, rgba(139,92,246,0.18), rgba(34,211,238,0.18));
+    box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+  }
+
+  /* Generic panel and code blocks so we can avoid inline styles */
+  body.arena .panel{
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  body.arena .code{
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    padding: 8px;
+    border-radius: 8px;
+  }

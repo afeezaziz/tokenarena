@@ -1,10 +1,14 @@
 {% extends "base.html" %}
-{% block content %}
-<section class="settings" id="settings">
+  {% block content %}
+  <section class="settings" id="settings">
   <h2>Settings</h2>
+  <div style="margin:8px 0 12px; display:flex; gap:8px; align-items:center;">
+    <button class="btn theme-toggle" aria-label="Toggle theme">☀ Light</button>
+    <span class="muted">Theme</span>
+  </div>
   <p class="muted">Update your profile information.</p>
 
-  <div class="panel" style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 640px;">
+  <div class="panel" style="max-width: 640px;">
     <div style="display:flex; gap:16px; align-items:center; margin-bottom: 16px;">
       <img id="avatar_preview" src="" alt="avatar" style="width:64px; height:64px; border-radius: 50%; object-fit: cover; border:1px solid var(--border); background: var(--panel-2);" />
       <div>
@@ -25,7 +29,7 @@
     </div>
     <div style="margin-bottom: 12px;">
       <label class="muted">Public Key</label>
-      <div id="pubkey_view" class="code" style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel-2); border:1px solid var(--border); padding:8px; border-radius:8px; word-break: break-all;"></div>
+      <div id="pubkey_view" class="code" style="word-break: break-all;"></div>
     </div>
     <div style="display:flex; gap: 8px; align-items:center;">
       <button id="save-settings" class="btn">Save</button>

@@ -375,6 +375,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   // range toggle
   const rangeWrap = document.getElementById('global-range');
   let currentRange = localStorage.getItem('tb_global_range') || '30d';
+  window.TB = window.TB || {};
+  window.TB.globalRange = currentRange;
   if (rangeWrap){
     // reflect stored range
     const btnStored = rangeWrap.querySelector(`.btn[data-range="${currentRange}"]`);
@@ -389,6 +391,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       rangeWrap.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       localStorage.setItem('tb_global_range', currentRange);
+      window.TB.globalRange = currentRange;
       loadGlobalCharts(currentRange);
     });
   }
@@ -539,6 +542,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (window.TB && window.TB.showToast) window.TB.showToast('Exported current page as CSV');
     });
   }
+  // Respond to theme changes by redrawing charts with new colors
+  window.addEventListener('themechange', () => {
+    const r = (window.TB && window.TB.globalRange) ? window.TB.globalRange : (localStorage.getItem('tb_global_range') || '30d');
+    loadGlobalCharts(r);
+  });
 });
 
 function sortTokensDataByMetric(){
