@@ -59,7 +59,7 @@ async function loadUserPage(){
       type: 'doughnut',
       data: { labels, datasets: [{ data, backgroundColor: labels.map((_,i)=>palette[i%palette.length]) }] },
       options: {
-        plugins: { legend: { labels: { color: '#0f172a' } } }
+        plugins: { legend: { labels: { color: (document.body.classList.contains('arena') ? '#e5e7eb' : '#0f172a') } } }
       }
     });
   } catch (e) {

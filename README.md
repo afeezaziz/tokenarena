@@ -1,4 +1,4 @@
-# Token Battles
+# Token Arena
 ## Deploying with Docker
 
 This repository includes a production-ready Dockerfile that starts the app (Gunicorn). Apply database migrations with Alembic separately (outside the container or via a one-off container run).
@@ -149,24 +149,20 @@ Currently seeded with synthetic data. The next step is to add an LNFI scraper th
 │     ├─ css/main.css
 │     └─ js/main.js
 ├─ seed.py               # Populate database with sample data
-├─ wsgi.py               # Gunicorn entrypoint
 ├─ config.py             # App configuration
 ├─ .env.example
 └─ pyproject.toml
-```
-
 ## Notes
-- The front page fetches `/api/overview`, `/api/tokens`, and `/api/chart/global` to render stats, a token table, and two charts (tokens over time, holders over time).
-- Light-mode UI with brand accents. Token table includes 7d/30d sparklines, sortable columns, server-side pagination with page-size selector, client filter (symbol/name), and CSV export (current page).
-- Global charts and token charts support range toggles: `7D/30D/90D/All`.
-- Global search bar queries `/api/search?q=` for tokens and users.
-- Designed to be extended to a real LNFI scraper for live data ingestion.
+  - The front page fetches `/api/overview`, `/api/tokens`, and `/api/chart/global` to render stats, a token table, and two charts (tokens over time, holders over time).
+  - Dark neon arena theme by default (enabled via `<body class="arena">`). Remove the class for the original light theme. Token table includes 7d/30d sparklines, sortable columns, server-side pagination with page-size selector, client filter (symbol/name), and CSV export (current page).
+  - Global charts and token charts support range toggles: `7D/30D/90D/All`.
+  - Global search bar queries `/api/search?q=` for tokens and users.
+  - Designed to be extended to a real LNFI scraper for live data ingestion.
 
 ### API reference
 - `GET /api/tokens` parameters:
   - `page` (int, default 1)
   - `page_size` (int, default 10, max 100)
-  - `sort` (`symbol|price_usd|market_cap_usd|holders_count|change_24h|last_updated`)
   - `dir` (`asc|desc`)
   - `q` (filter by symbol or name, case-insensitive)
   - `sparkline` (`1|true|yes` to include per-token `sparkline` array)

@@ -320,14 +320,19 @@ async function loadGlobalCharts(range='30d'){
   const ctx1 = document.getElementById('globalTokensChart');
   const ctx2 = document.getElementById('globalHoldersChart');
 
+  const isArena = document.body.classList.contains('arena');
+  const tickColor = isArena ? '#9ca3af' : '#64748b';
+  const gridColor = isArena ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const legendColor = isArena ? '#e5e7eb' : '#0f172a';
+
   const commonOptions = {
     responsive: true,
     scales: {
-      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.08)'} },
-      y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.08)'} },
+      x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+      y: { ticks: { color: tickColor }, grid: { color: gridColor } },
     },
     plugins: {
-      legend: { labels: { color: '#0f172a' } },
+      legend: { labels: { color: legendColor } },
       tooltip: { mode: 'index', intersect: false },
     }
   };
@@ -526,7 +531,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `token-battles-page-${currentPage}.csv`;
+      a.download = `token-arena-page-${currentPage}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

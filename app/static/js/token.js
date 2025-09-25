@@ -66,13 +66,18 @@ async function loadCharts(symbol, range){
   const ctx1 = document.getElementById('priceChart');
   const ctx2 = document.getElementById('holdersChart');
 
+  const isArena = document.body.classList.contains('arena');
+  const tickColor = isArena ? '#9ca3af' : '#64748b';
+  const gridColor = isArena ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+  const legendColor = isArena ? '#e5e7eb' : '#0f172a';
+
   const commonOptions = {
     responsive: true,
     scales: {
-      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.08)'} },
-      y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(0,0,0,0.08)'} },
+      x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+      y: { ticks: { color: tickColor }, grid: { color: gridColor } },
     },
-    plugins: { legend: { labels: { color: '#0f172a' } } }
+    plugins: { legend: { labels: { color: legendColor } } }
   };
 
   if (priceChart) priceChart.destroy();
