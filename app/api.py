@@ -1172,6 +1172,39 @@ def search():
 
 
 # ---------------------- Competition ----------------------
+@api_bp.get("/competitions")
+def competitions_list():
+    """Return a list of competitions with basic stats and status."""
+    session = get_session()
+    comps = session.query(Competition).order_by(Competition.start_at.desc()).all()
+    now = datetime.utcnow()
+    out = []
+    for c in comps:
+        # participants count
+        part_count = (
+            session.query(func.count(CompetitionEntry.id))
+            .filter(CompetitionEntry.competition_id == c.id)
+            .scalar()
+            or 0
+        )
+        status = "upcoming"
+        if c.start_at and c.end_at:
+            if c.start_at <= now <= c.end_at:
+                status = "active"
+            elif now > c.end_at:
+                status = "past"
+        out.append({
+            "slug": c.slug,
+            "title": c.title,
+            "description": c.description,
+            "start_at": c.start_at.isoformat() if c.start_at else None,
+            "end_at": c.end_at.isoformat() if c.end_at else None,
+            "participants": int(part_count),
+            "status": status,
+        })
+    return jsonify(out)
+
+
 @api_bp.get("/competition/<slug>")
 def competition_detail(slug: str):
     session = get_session()
@@ -1202,3 +1235,77 @@ def competition_detail(slug: str):
         "end_at": comp.end_at.isoformat() if comp.end_at else None,
         "leaderboard": leaderboard,
     })
+
+
+# ---------------------- Data Sources ----------------------
+@api_bp.get("/datasources")
+def datasources_list():
+    """Return a list of data sources. Static for now (no DB model yet)."""
+    # In the future, back this with a DataSource model
+    sources = [
+        {
+            "slug": "lnfi",
+            "name": "LNFI",
+            "description": "Lightning Fi: token, prices, holders and volume (Nostr native).",
+            "coverage": ["tokens", "prices", "holders", "snapshots"],
+            "freshness": "~15m",
+            "website": "https://lnfi.io/",
+            "status": "operational",
+            "last_sync_at": datetime.utcnow().isoformat() + "Z",
+        },
+        {
+            "slug": "mempool-relays",
+            "name": "Mempool Relays",
+            "description": "Aggregated relay events for market activity.",
+            "coverage": ["relays", "activity"],
+            "freshness": "~5m",
+            "website": "https://github.com/nostr-protocol/",
+            "status": "operational",
+            "last_sync_at": datetime.utcnow().isoformat() + "Z",
+        },
+    ]
+    return jsonify(sources)
+
+
+@api_bp.get("/datasource/<slug>")
+def datasource_detail(slug: str):
+    """Return details for a single data source. Static for now."""
+    base = {
+        "lnfi": {
+            "slug": "lnfi",
+            "name": "LNFI",
+            "website": "https://lnfi.io/",
+            "description": "Lightning Fi: token registry, prices, holders, market data.",
+            "coverage": [
+                {"key": "tokens", "desc": "Token registry and metadata"},
+                {"key": "prices", "desc": "Spot and historical prices"},
+                {"key": "holders", "desc": "Holders count and growth"},
+                {"key": "snapshots", "desc": "Daily snapshots for charts"},
+            ],
+            "status": "operational",
+            "last_sync_at": datetime.utcnow().isoformat() + "Z",
+            "changelog": [
+                {"version": "2025-09-01", "note": "Added holders growth 24h."},
+                {"version": "2025-08-15", "note": "Initial integration."},
+            ],
+        },
+        "mempool-relays": {
+            "slug": "mempool-relays",
+            "name": "Mempool Relays",
+            "website": "https://github.com/nostr-protocol/",
+            "description": "Relay activity and liquidity hints.",
+            "coverage": [
+                {"key": "relays", "desc": "Relay list and basic stats"},
+                {"key": "activity", "desc": "Event rates and spikes"},
+            ],
+            "status": "operational",
+            "last_sync_at": datetime.utcnow().isoformat() + "Z",
+            "changelog": [
+                {"version": "2025-09-05", "note": "Added activity spikes."},
+            ],
+        },
+    }
+    ds = base.get(slug)
+    if not ds:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify(ds)

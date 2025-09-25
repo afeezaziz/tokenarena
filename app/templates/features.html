@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>Features</h1>
+  <p class="subtitle">Everything you need to explore the Token Arena and make better calls.</p>
+</section>
+
+<section class="battles">
+  <div class="card-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+    <div class="panel">
+      <h3>Leaderboards</h3>
+      <p class="muted">Sortable tables with <strong>24h</strong>, <strong>7D</strong>, <strong>Sharpe(7D)</strong>, <strong>Holders Growth</strong>, <strong>Market Share Δ</strong>, and <strong>Composite</strong> scores.</p>
+    </div>
+    <div class="panel">
+      <h3>Token Pages</h3>
+      <p class="muted">Prices, holders, top holders, and charts—clean and fast.</p>
+    </div>
+    <div class="panel">
+      <h3>User Portfolios</h3>
+      <p class="muted">See portfolio allocation, value, and token breakdowns.</p>
+    </div>
+    <div class="panel">
+      <h3>Competitions</h3>
+      <p class="muted">Active/upcoming/past competitions with leaderboards and scores.</p>
+    </div>
+    <div class="panel">
+      <h3>Global Charts</h3>
+      <p class="muted">Tokens and holders growth across time ranges.</p>
+    </div>
+    <div class="panel">
+      <h3>Search</h3>
+      <p class="muted">Lightning-fast search for tokens and users. Keyboard-friendly.</p>
+    </div>
+    <div class="panel">
+      <h3>Exports</h3>
+      <p class="muted">Export leaderboards and portfolios to CSV in one click.</p>
+    </div>
+    <div class="panel">
+      <h3>Demo Mode</h3>
+      <p class="muted">Try everything instantly with mock data. Seedable and configurable.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

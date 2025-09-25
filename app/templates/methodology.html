@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>Methodology</h1>
+  <p class="subtitle">How we compute the metrics that power Token Arena.</p>
+</section>
+
+<section class="battles">
+  <div class="panel">
+    <h3>Returns</h3>
+    <p class="muted">
+      We compute <strong>24h</strong>, <strong>7D</strong>, and <strong>30D</strong> simple returns from closing price snapshots.
+      For a period <em>t</em>, return <code>R = (P_t - P_{t-1}) / P_{t-1}</code>. If the starting price is non‑positive or we lack history,
+      the metric is omitted. We also use log returns <code>r = ln(P_t / P_{t-1})</code> for stability in Sharpe.
+    </p>
+  </div>
+  <div class="panel">
+    <h3>Sharpe (7D)</h3>
+    <p class="muted">
+      A 7‑day, daily‑frequency Sharpe‑like ratio using log returns: <code>Sharpe = μ/σ</code> over the last 7 daily returns.
+      We winsorize extremes and require ≥ 3 observations. This is not an annualized value.
+    </p>
+  </div>
+  <div class="panel">
+    <h3>Holders Growth (24h)</h3>
+    <p class="muted">
+      Percent growth over 24h from holder count snapshots: <code>Δ% = (H_t - H_{t-1}) / max(1, H_{t-1})</code>.
+      If yesterday was zero and today positive, we cap at 100% to avoid division explosion.
+    </p>
+  </div>
+  <div class="panel">
+    <h3>Market Share Δ (7D)</h3>
+    <p class="muted">
+      Change in market cap share over 7d relative to the tracked universe at each snapshot:
+      <code>share_t = mcap_t / Σ mcap_t</code>; <code>Δshare = share_t − share_{t-7}</code>.
+    </p>
+  </div>
+  <div class="panel">
+    <h3>Turnover</h3>
+    <p class="muted">24h volume divided by market cap: <code>turnover = vol_24h / mcap</code>.</p>
+  </div>
+  <div class="panel">
+    <h3>Composite Score</h3>
+    <p class="muted">
+      A blended z‑score of standardized metrics: <em>7D return</em>, <em>holders growth 24h</em>, <em>market share Δ</em>,
+      <em>Sharpe 7D</em>, and <em>turnover</em>. Each series is winsorized and z‑scored across the current universe.
+      We weight as: <code>1·r7 + 0.5·holders + 1·shareΔ + 0.5·sharpe + 0.5·turnover</code>.
+    </p>
+  </div>
+</section>
+
+<section class="battles">
+  <div class="panel">
+    <h3>Data Sources</h3>
+    <p class="muted">See <a href="/datasources">Data Sources</a> for coverage and freshness. In Demo Mode, synthetic data is generated but follows the same calculations.</p>
+  </div>
+  <div class="panel">
+    <h3>Definitions & Caveats</h3>
+    <ul class="muted">
+      <li><strong>Snapshots:</strong> once per day unless otherwise noted. Intraday volatility is not captured.</li>
+      <li><strong>Outliers:</strong> Metrics are winsorized per snapshot to reduce the influence of extreme values.</li>
+      <li><strong>Universe drift:</strong> Composite ranks change when tokens enter/exit the universe.</li>
+      <li><strong>Liquidity:</strong> Low‑liquidity tokens can show unstable returns and turnover.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>Example</h3>
+    <p class="muted">
+      If a token moves from $1.00 to $1.20 in 7 days, <code>r7 = 20%</code>. If 24h volume is $2M and mcap is $100M,
+      <code>turnover = 0.02</code>. If holders grew from 10,000 to 10,200 in 24h, <code>Δ% = 2%</code>.
+    </p>
+  </div>
+</section>
+{% endblock %}

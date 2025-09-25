@@ -19,6 +19,35 @@ let minVolume = localStorage.getItem('tb_min_volume') || '';
 function fmtCurrency(n) {
   try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n); } catch { return `$${Number(n).toLocaleString()}`; }
 }
+
+async function loadChangelogWidget(){
+  const wrap = document.getElementById('whats-new-list');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  try{
+    const r = await fetch('/api/changelog?limit=3');
+    const items = await r.json();
+    if (!Array.isArray(items) || items.length === 0){
+      const div = document.createElement('div');
+      div.className = 'muted';
+      div.textContent = 'No updates yet.';
+      wrap.appendChild(div);
+      return;
+    }
+    items.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'panel';
+      const date = it.date || '';
+      const title = it.title || '';
+      const notes = Array.isArray(it.items) ? it.items : [];
+      card.innerHTML = `
+        <h3>${title || date}</h3>
+        <ul class="muted">${notes.map(n => `<li>${n}</li>`).join('')}</ul>
+      `;
+      wrap.appendChild(card);
+    });
+  } catch(e){ console.error(e); }
+}
 function fmtNumber(n) {
   try { return new Intl.NumberFormat('en-US').format(n); } catch { return Number(n).toLocaleString(); }
 }
@@ -90,6 +119,12 @@ function renderTokensTable(){
   const tbody = document.getElementById('tokens-tbody');
   if (!tbody) return;
   tbody.innerHTML = '';
+  if (!tokensData || tokensData.length === 0){
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="8" class="muted" style="text-align:center;padding:12px">No results</td>';
+    tbody.appendChild(tr);
+    return;
+  }
   tokensData.forEach((t, i) => {
     const tr = document.createElement('tr');
     tr.dataset.symbol = t.symbol;
@@ -121,6 +156,12 @@ function bindTokensTableSorting(){
       if (arrow){
         const asc = sortDir === 'asc';
         arrow.textContent = active && asc ? '▲' : '▼';
+      }
+      // Accessibility: reflect sorting state
+      if (active){
+        h.setAttribute('aria-sort', sortDir === 'asc' ? 'ascending' : 'descending');
+      } else {
+        h.setAttribute('aria-sort', 'none');
       }
     });
   }
@@ -180,11 +221,16 @@ function bindTokensTableSorting(){
 async function loadOverview(){
   const res = await fetch('/api/overview');
   const d = await res.json();
-  document.getElementById('stat-market-cap').textContent = fmtCurrency(d.total_market_cap_usd || 0);
-  document.getElementById('stat-volume').textContent = fmtCurrency(d.volume_24h_usd || 0);
-  document.getElementById('stat-tokens').textContent = fmtNumber(d.total_tokens || 0);
-  document.getElementById('stat-holders').textContent = fmtNumber(d.total_holders || 0);
-  document.getElementById('stat-dominance').textContent = `${(d.dominance_pct || 0).toFixed(2)}%`;
+  const mcapEl = document.getElementById('stat-market-cap');
+  const volEl = document.getElementById('stat-volume');
+  const tokEl = document.getElementById('stat-tokens');
+  const holdersEl = document.getElementById('stat-holders');
+  const domEl = document.getElementById('stat-dominance');
+  if (mcapEl) mcapEl.textContent = fmtCurrency(d.total_market_cap_usd || 0);
+  if (volEl) volEl.textContent = fmtCurrency(d.volume_24h_usd || 0);
+  if (tokEl) tokEl.textContent = fmtNumber(d.total_tokens || 0);
+  if (holdersEl) holdersEl.textContent = fmtNumber(d.total_holders || 0);
+  if (domEl) domEl.textContent = `${(d.dominance_pct || 0).toFixed(2)}%`;
 }
 
 function renderPagination(){
@@ -319,6 +365,7 @@ async function loadGlobalCharts(range='30d'){
 
   const ctx1 = document.getElementById('globalTokensChart');
   const ctx2 = document.getElementById('globalHoldersChart');
+  if (!ctx1 || !ctx2) return; // charts not present on this page
 
   const isArena = document.body.classList.contains('arena');
   const tickColor = isArena ? '#9ca3af' : '#64748b';
@@ -396,6 +443,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
   await loadGlobalCharts(currentRange);
+  await loadChangelogWidget();
+
+  // Demo presets segmented control (home)
+  const demoPresets = document.getElementById('demo-presets-buttons');
+  if (demoPresets){
+    demoPresets.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn');
+      if (!btn) return;
+      const preset = btn.dataset.preset;
+      if (!preset) return;
+      // Toggle UI state
+      demoPresets.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      // Apply preset (this seeds data) and ensure demo is on
+      if (window.TB && TB.applyDemoPreset){ TB.applyDemoPreset(preset); }
+      if (window.TB && TB.enableMock){ TB.enableMock(true); }
+    });
+  }
 
   // movers metric segmented
   const moversSeg = document.getElementById('movers-metric');

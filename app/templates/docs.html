@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>API Docs</h1>
+  <p class="subtitle">Public endpoints that power Token Arena. Use Demo Mode to try without a backend.</p>
+</section>
+
+<section class="battles">
+  <div class="panel">
+    <h3>Authentication</h3>
+    <p class="muted">Most endpoints are public. Profile/Settings require auth on a real backend. In Demo Mode, mocks respond without auth.</p>
+  </div>
+  <div class="panel">
+    <h3>Overview</h3>
+    <pre class="code">GET /api/overview</pre>
+    <p class="muted">Returns market-wide aggregates: total market cap, volume 24h, token count, holder count, dominance.</p>
+  </div>
+  <div class="panel">
+    <h3>Tokens</h3>
+    <pre class="code">GET /api/tokens?page=1&page_size=25&q=abc</pre>
+    <p class="muted">Paginated token list. Supports filtering by q (symbol or name).</p>
+    <pre class="code">GET /api/top-movers?metric=change_24h&limit=5</pre>
+    <p class="muted">Top tokens by a metric: change_24h | r7 | r30 | r7_sharpe | holders_growth_pct_24h | share_delta_7d | turnover_pct | composite</p>
+    <pre class="code">GET /api/token/&lt;symbol&gt;</pre>
+    <p class="muted">Token detail including top holders.</p>
+    <pre class="code">GET /api/chart/token/&lt;symbol&gt;?range=7d|30d|90d|all</pre>
+    <p class="muted">Token price/holders timeseries.</p>
+  </div>
+  <div class="panel">
+    <h3>Global Charts</h3>
+    <pre class="code">GET /api/chart/global?range=7d|30d|90d|all</pre>
+    <p class="muted">Ecosystem-level tokens and holders timeseries.</p>
+  </div>
+  <div class="panel">
+    <h3>Users</h3>
+    <pre class="code">GET /api/user/&lt;npub&gt;</pre>
+    <p class="muted">User portfolio with holdings, values, and allocation.</p>
+  </div>
+  <div class="panel">
+    <h3>Search</h3>
+    <pre class="code">GET /api/search?q=string</pre>
+    <p class="muted">Find tokens and users by name/symbol/npub.</p>
+  </div>
+  <div class="panel">
+    <h3>Competitions</h3>
+    <pre class="code">GET /api/competitions</pre>
+    <pre class="code">GET /api/competition/&lt;slug&gt;</pre>
+    <p class="muted">Competition list and leaderboard detail.</p>
+  </div>
+  <div class="panel">
+    <h3>Data Sources</h3>
+    <pre class="code">GET /api/datasources</pre>
+    <pre class="code">GET /api/datasource/&lt;slug&gt;</pre>
+    <p class="muted">Sources powering the app (static for now).</p>
+  </div>
+  <div class="panel">
+    <h3>Profile & Settings</h3>
+    <pre class="code">GET /api/profile</pre>
+    <pre class="code">POST /api/profile  { display_name, bio }</pre>
+    <pre class="code">POST /api/profile/avatar  (multipart/form-data, field: avatar)</pre>
+    <pre class="code">POST /api/profile/avatar/presign</pre>
+    <pre class="code">POST /api/profile/avatar/complete</pre>
+    <p class="muted">These are mocked in Demo Mode and may differ on a real backend.</p>
+  </div>
+</section>
+{% endblock %}

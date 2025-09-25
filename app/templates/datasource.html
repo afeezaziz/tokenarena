@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="datasource-page" data-slug="{{ slug }}">
+  <section class="hero" style="text-align:left">
+    <h1 id="ds-name" style="margin:0">Data Source</h1>
+    <div class="muted" id="ds-website" style="font-size:13px"></div>
+  </section>
+
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Status</div>
+      <div class="stat-value" id="ds-status">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Last Sync</div>
+      <div class="stat-value" id="ds-last-sync">—</div>
+    </div>
+  </section>
+
+  <section class="battles">
+    <h2 class="section-title">Coverage</h2>
+    <div id="ds-coverage"></div>
+  </section>
+
+  <section class="battles">
+    <h2 class="section-title">Changelog</h2>
+    <div id="ds-changelog"></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/datasource.js') }}?v={{ STATIC_VERSION }}"></script>
+{% endblock %}

@@ -1,55 +1,33 @@
 {% extends 'base.html' %}
-  {% block head_extra %}
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    "name": "Home",
-    "url": "{{ canonical_url }}",
-    "description": "{{ description or DEFAULT_DESCRIPTION }}"
-  }
-  </script>
-  {% endblock %}
-  {% block content %}
-  <section class="hero">
-  <h1>Welcome to Token Arena — Where Tokens Go To Battle</h1>
-  <p class="subtitle">Battle-ready market intel, leaderboards, holders and charts. Built for fun, tuned for edge.</p>
-  </section>
-
-  <section class="battles" id="demo-presets">
-    <div class="segmented" id="demo-presets-buttons" style="margin: 6px 0 10px;">
-      <div class="btn" data-preset="calm-small">Calm · Small</div>
-      <div class="btn active" data-preset="normal-medium">Normal · Medium</div>
-      <div class="btn" data-preset="degen-large">Degen · Large</div>
-    </div>
-    <div class="muted" style="font-size:12px">Tip: presets automatically enable Demo Mode.</div>
-  </section>
-
-  <section class="stats-grid" id="market-stats">
-  <div class="stat-card">
-    <div class="stat-label">Total Market Cap</div>
-    <div id="stat-market-cap" class="stat-value">—</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">24h Volume</div>
-    <div id="stat-volume" class="stat-value">—</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Total Tokens</div>
-    <div id="stat-tokens" class="stat-value">—</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Total Holders</div>
-    <div id="stat-holders" class="stat-value">—</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Top Dominance</div>
-    <div id="stat-dominance" class="stat-value">—</div>
-  </div>
-  </section>
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "Tokens",
+  "url": "{{ canonical_url }}",
+  "description": "{{ description or DEFAULT_DESCRIPTION }}"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "{{ SITE_URL }}"},
+    {"@type": "ListItem", "position": 2, "name": "Tokens", "item": "{{ canonical_url }}"}
+  ]
+}
+</script>
+{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>All Tokens</h1>
+  <p class="subtitle">Explore the full token leaderboard with powerful filters and metrics.</p>
+</section>
 
 <section class="battles" id="tokens">
-  <h2>Leaderboard — Top Movers</h2>
+  <h2>Leaderboard</h2>
   <div class="segmented" id="movers-metric" style="margin: 6px 0 10px;">
     <div class="btn active" data-metric="change_24h">24h</div>
     <div class="btn" data-metric="r7">7D</div>
@@ -111,29 +89,4 @@
     <div class="pagination" id="tokens-pagination"></div>
   </div>
 </section>
-
-<section class="charts" id="charts">
-  <h2>Ecosystem Charts</h2>
-  <div class="segmented" id="global-range" style="margin: 6px 0 12px;">
-    <div class="btn" data-range="7d">7D</div>
-    <div class="btn active" data-range="30d">30D</div>
-    <div class="btn" data-range="90d">90D</div>
-    <div class="btn" data-range="all">All</div>
-  </div>
-  <div class="charts-grid">
-    <div class="chart-card">
-      <h3>Number of Tokens Over Time</h3>
-      <canvas id="globalTokensChart"></canvas>
-    </div>
-    <div class="chart-card">
-      <h3>Number of Holders Over Time</h3>
-      <canvas id="globalHoldersChart"></canvas>
-    </div>
-  </div>
-</section>
-
-<section class="battles" id="whats-new">
-  <h2>What’s New</h2>
-  <div id="whats-new-list"></div>
- </section>
 {% endblock %}

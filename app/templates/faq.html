@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>Frequently Asked Questions</h1>
+  <p class="subtitle">Quick answers to common questions.</p>
+</section>
+
+<section class="battles">
+  <div class="panel">
+    <h3>What is Token Arena?</h3>
+    <p class="muted">A fast, transparent dashboard for token markets: leaderboards, holders, charts, and competitions.</p>
+  </div>
+  <div class="panel">
+    <h3>How do I try it without connecting anything?</h3>
+    <p class="muted">Enable <strong>Demo Mode</strong> from the header. You can tweak the dataset size, volatility, and more.</p>
+  </div>
+  <div class="panel">
+    <h3>Where does the data come from?</h3>
+    <p class="muted">See <a href="/datasources">Data Sources</a>. In Demo Mode, synthetic data is generated locally.</p>
+  </div>
+  <div class="panel">
+    <h3>Can I export data?</h3>
+    <p class="muted">Yes, CSV export is built into the tokens table. More export options are planned for Pro.</p>
+  </div>
+</section>
+{% endblock %}

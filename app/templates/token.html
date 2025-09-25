@@ -1,4 +1,28 @@
 {% extends 'base.html' %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "{{ symbol }} Token",
+  "url": "{{ canonical_url }}",
+  "image": "{{ abs_url(social_image or DEFAULT_SOCIAL_IMAGE) }}",
+  "brand": { "@type": "Brand", "name": "Token Arena" },
+  "description": "{{ description or DEFAULT_DESCRIPTION }}"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "{{ SITE_URL }}"},
+    {"@type": "ListItem", "position": 2, "name": "Tokens", "item": "{{ SITE_URL }}/tokens"},
+    {"@type": "ListItem", "position": 3, "name": "{{ symbol }}", "item": "{{ canonical_url }}"}
+  ]
+}
+</script>
+{% endblock %}
 {% block content %}
 <div id="token-page" data-symbol="{{ symbol }}">
   <section class="hero" style="text-align:left">
@@ -48,13 +72,13 @@
   <section class="battles">
     <h2 class="section-title">Top Holders</h2>
     <div class="table-wrapper">
-      <table class="tokens-table">
+      <table class="tokens-table" aria-label="Top holders">
         <thead>
           <tr>
-            <th>Rank</th>
-            <th>User</th>
-            <th>Quantity</th>
-            <th>Value (USD)</th>
+            <th scope="col">Rank</th>
+            <th scope="col">User</th>
+            <th scope="col">Quantity</th>
+            <th scope="col">Value (USD)</th>
           </tr>
         </thead>
         <tbody id="top-holders"></tbody>
@@ -65,5 +89,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/token.js') }}"></script>
+<script defer src="{{ url_for('static', filename='js/token.js') }}?v={{ STATIC_VERSION }}"></script>
 {% endblock %}

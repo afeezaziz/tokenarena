@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>Contact</h1>
+  <p class="subtitle">Have feedback or want early access? Drop us a line.</p>
+</section>
+
+<section class="battles">
+  <div class="panel" style="max-width:720px">
+    <form id="contact-form">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label class="muted" for="c-name">Name</label>
+          <input id="c-name" class="search-input" type="text" placeholder="Your name" required />
+        </div>
+        <div>
+          <label class="muted" for="c-email">Email</label>
+          <input id="c-email" class="search-input" type="email" placeholder="you@example.com" required />
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label class="muted" for="c-message">Message</label>
+        <textarea id="c-message" class="search-input" rows="5" placeholder="How can we help?" required></textarea>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <button id="c-submit" class="btn" type="submit">Send</button>
+        <span id="c-status" class="muted"></span>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/contact.js') }}?v={{ STATIC_VERSION }}"></script>
+{% endblock %}

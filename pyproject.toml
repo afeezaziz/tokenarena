@@ -15,4 +15,5 @@ dependencies = [
     "boto3>=1.35.0",
     "alembic>=1.13.2",
     "psycopg[binary]>=3.2.1",
+    "pillow>=10.0.0",
 ]

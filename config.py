@@ -25,3 +25,24 @@ class Config:
     S3_PUBLIC_BASE_URL = os.getenv("S3_PUBLIC_BASE_URL")  # optional public base URL override
     # Optional: auto-create tables at startup (dev only). With Alembic, keep disabled.
     AUTO_CREATE_DB = os.getenv("AUTO_CREATE_DB", "0") == "1"
+
+    # Site / SEO
+    SITE_NAME = os.getenv("SITE_NAME", "Token Arena")
+    SITE_URL = os.getenv("SITE_URL", "http://localhost:5000")  # used for canonical/og:url
+    DEFAULT_DESCRIPTION = os.getenv(
+        "DEFAULT_DESCRIPTION",
+        "Battle-ready market intel: leaderboards, holders, charts and competitions.",
+    )
+    DEFAULT_SOCIAL_IMAGE = os.getenv(
+        "DEFAULT_SOCIAL_IMAGE",
+        # Fallback to favicon or a static placeholder; update to a proper OG image when available
+        "/static/favicon.svg",
+    )
+    STATIC_VERSION = os.getenv("STATIC_VERSION", "1")
+    STATIC_CACHE_SECONDS = int(os.getenv("STATIC_CACHE_SECONDS", "86400"))
+
+    # Analytics
+    ANALYTICS_PLAUSIBLE_DOMAIN = os.getenv("ANALYTICS_PLAUSIBLE_DOMAIN")  # e.g., tokenarena.example
+    ANALYTICS_GA4_ID = os.getenv("ANALYTICS_GA4_ID")  # e.g., G-XXXXXXXXXX
+    # Social
+    TWITTER_SITE = os.getenv("TWITTER_SITE")  # e.g., @tokenarena

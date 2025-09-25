@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "Data Sources",
+  "url": "{{ canonical_url }}",
+  "description": "{{ description or DEFAULT_DESCRIPTION }}"
+}
+</script>
+{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Data Sources</h1>
+  <p class="subtitle">Transparent and fast data powering Token Arena.</p>
+</section>
+
+<section class="battles">
+  <div class="table-wrapper">
+    <table class="tokens-table" aria-label="Data Sources">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Coverage</th>
+          <th scope="col">Freshness</th>
+          <th scope="col">Status</th>
+          <th scope="col">Action</th>
+        </tr>
+      </thead>
+      <tbody id="datasources-tbody"></tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/datasources.js') }}?v={{ STATIC_VERSION }}"></script>
+{% endblock %}
