@@ -32,20 +32,6 @@
       </div>
     </div>
   </section>
-  
-  <!-- Live Home Ticker -->
-  <section class="home-ticker" aria-label="Live movers">
-    <div id="home-ticker" class="home-ticker-track"></div>
-  </section>
-
-  <!-- Weekly Battle -->
-  <section class="weekly-battle" aria-labelledby="wb-title">
-    <div class="section-header">
-      <h2 id="wb-title">Weekly Battle</h2>
-      <p class="section-subtitle">Head-to-head faceoffs of the biggest tokens this week</p>
-    </div>
-    <div id="weekly-battle"></div>
-  </section>
 
   <!-- Featured Products -->
   <section class="products" id="products">
@@ -236,56 +222,10 @@
   </div>
 </section>
 
-<!-- Spotlights: Competitions & Sources -->
-<section class="spotlights" aria-label="Spotlights">
-  <div class="spotlights-grid">
-    <div class="spot-panel">
-      <h3>Competitions</h3>
-      <div id="spotlight-competitions" class="spot-cards"></div>
-    </div>
-    <div class="spot-panel">
-      <h3>Data Sources</h3>
-      <div id="spotlight-sources" class="spot-cards"></div>
-    </div>
-  </div>
-  <div class="muted small" style="margin-top:6px">Powered by community competitions and open data</div>
-  </section>
-
-<!-- Logos Bar -->
-<section class="logos" aria-label="Partners and data sources">
-  <div class="logos-row">
-    <span class="logo">⚡ RLN</span>
-    <span class="logo">LNFI</span>
-    <span class="logo">Nostr</span>
-    <span class="logo">Mempool</span>
-    <span class="logo">RGB</span>
-  </div>
-  <div class="muted small" style="text-align:center;margin-top:6px">Ecosystem integrations powering Token Arena</div>
-  </section>
-
-<!-- Testimonials -->
-<section class="testimonials" aria-labelledby="testimonials-title">
-  <h2 id="testimonials-title" class="visually-hidden">Testimonials</h2>
-  <div class="testimonials-grid">
-    <div class="t-card">
-      <p>“Arena gives me a fast pulse of the RGB market — I check it every day.”</p>
-      <div class="who">Pro Trader</div>
-    </div>
-    <div class="t-card">
-      <p>“The launchpad workflow is the smoothest way to issue and list new RGB assets.”</p>
-      <div class="who">RGB Issuer</div>
-    </div>
-    <div class="t-card">
-      <p>“Clean UI, powerful filters, and export — exactly what I need.”</p>
-      <div class="who">Analyst</div>
-    </div>
-  </div>
-</section>
-
 <!-- What's New -->
 <section class="whats-new-section" id="whats-new">
   <div class="section-header">
-    <h2>What’s New</h2>
+    <h2>What's New</h2>
     <p class="section-subtitle">Latest updates and features</p>
   </div>
   <div id="whats-new-list" class="whats-new-grid"></div>
@@ -304,55 +244,54 @@
 </section>
 
 <style>
-  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
-  .logos { margin: 28px 0; }
-  .logos-row { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; align-items:center; }
-  .logos-row .logo { opacity:0.9; border:1px solid var(--border); padding:6px 10px; border-radius:8px; font-weight:600; color:var(--text-secondary); background:var(--panel); }
-  .testimonials { margin: 24px 0; }
-  .testimonials-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 12px; }
-  .t-card { background: var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px; }
-  .t-card p { margin:0 0 8px; color: var(--text); }
-  .t-card .who { color: var(--text-secondary); font-size: 0.85rem; }
-  .whats-new-grid { display: grid; gap: 12px; }
-  .cta-section { background: linear-gradient(135deg, rgba(124,92,255,0.1), rgba(0,209,178,0.1)); border: 1px solid rgba(124,92,255,0.2); border-radius: 16px; padding: 28px 16px; text-align: center; margin-top: 28px; }
+  .hero { position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse at center, rgba(124,92,255,0.1) 0%, transparent 70%); pointer-events: none; }
+  .hero-content { position: relative; z-index: 1; }
+  .gradient-text { background: linear-gradient(135deg, #7c5cff, #00d1b2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .btn-secondary { background: rgba(124,92,255,0.1); border: 1px solid rgba(124,92,255,0.3); color: #7c5cff; }
+  .btn-secondary:hover { background: rgba(124,92,255,0.2); }
+  .hero-stats { display: flex; gap: 24px; margin-top: 20px; }
+  .hero-stat { text-align: center; }
+  .hero-stat .value { display: block; font-size: 1.5rem; font-weight: 700; color: var(--text); }
+  .hero-stat .label { font-size: 0.8rem; color: var(--text-secondary); }
+  
+  .section-header { text-align: center; margin-bottom: 32px; }
+  .section-header h2 { margin: 0 0 8px; font-size: 2rem; }
+  .section-subtitle { color: var(--text-secondary); font-size: 1.1rem; margin: 0; }
+  
+  .products-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .product-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: transform 0.2s ease, border-color 0.2s ease; }
+  .product-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .product-card.featured { border-color: var(--accent); background: linear-gradient(135deg, rgba(124,92,255,0.05), rgba(0,209,178,0.05)); }
+  .product-icon { font-size: 2rem; margin-bottom: 12px; }
+  .product-card h3 { margin: 0 0 8px; color: var(--text); }
+  .product-card p { color: var(--text-secondary); margin: 0 0 16px; line-height: 1.5; }
+  .product-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .product-link:hover { color: var(--accent-2); }
+  
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+  .feature-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .feature-icon { font-size: 1.5rem; margin-bottom: 12px; }
+  .feature-card h3 { margin: 0 0 8px; color: var(--text); }
+  .feature-card p { color: var(--text-secondary); margin: 0; line-height: 1.5; }
+  
+  .demo-section { text-align: center; }
+  .whats-new-grid { display: grid; gap: 16px; }
+  .whats-new-grid .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .whats-new-grid h3 { margin: 0 0 8px; color: var(--text); font-size: 1rem; }
+  .whats-new-grid ul { margin: 0; padding-left: 16px; }
+  .whats-new-grid li { color: var(--text-secondary); margin-bottom: 4px; }
+  
+  .cta-section { background: linear-gradient(135deg, rgba(124,92,255,0.1), rgba(0,209,178,0.1)); border: 1px solid rgba(124,92,255,0.2); border-radius: 16px; padding: 40px 20px; text-align: center; margin-top: 40px; }
   .cta-content h2 { margin: 0 0 8px; color: var(--text); }
-  .cta-content p { color: var(--text-secondary); margin: 0 0 16px; }
-  .cta-buttons { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .cta-content p { color: var(--text-secondary); margin: 0 0 24px; }
+  .cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
   .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
   .btn-outline:hover { background: rgba(124,92,255,0.1); }
   
-  /* Home ticker */
-  .home-ticker { margin: 10px 0 18px; border-top:1px solid var(--border); border-bottom:1px solid var(--border); overflow:hidden; }
-  .home-ticker-track { display:flex; gap: 18px; padding: 10px 0; animation: marquee 40s linear infinite; }
-  .tick-item { display:flex; gap:8px; align-items:center; padding:4px 8px; border:1px solid var(--border); border-radius:999px; background: var(--panel); }
-  .tick-item .sym { font-weight:700; color: var(--text); }
-  .tick-item .val.up { color:#00d1b2; }
-  .tick-item .val.down { color:#ff5c7c; }
-  @keyframes marquee { 0%{ transform: translateX(0);} 100%{ transform: translateX(-50%);} }
-
-  /* Weekly Battle */
-  .weekly-battle { margin: 18px 0 24px; }
-  .wb-grid { display:grid; grid-template-columns: 1fr; gap: 12px; }
-  .wb-match { display:grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
-  .wb-vs { display:flex; align-items:center; justify-content:center; font-weight:800; color: var(--text-secondary); padding: 8px; }
-  .wb-card { background: var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; }
-  .wb-head { display:flex; gap:8px; align-items:center; }
-  .wb-head .sym { font-weight:800; color: var(--text); }
-  .wb-head .name { color: var(--text-secondary); font-size: 0.9rem; }
-  .wb-spark svg { width:100%; height:24px; }
-  .wb-meta { color: var(--text-secondary); font-size: 0.85rem; }
-  .wb-meta .up { color:#00d1b2; }
-  .wb-meta .down { color:#ff5c7c; }
-
-  /* Spotlights */
-  .spotlights { margin: 24px 0; }
-  .spotlights-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .spot-panel { background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 14px; }
-  .spot-cards { display:grid; gap:10px; }
-  .spot-card { border:1px solid var(--border); border-radius:10px; padding:10px; background: var(--bg); transition: transform .15s ease, border-color .15s ease; }
-  .spot-card:hover { transform: translateY(-1px); border-color: var(--accent); }
-  .spot-title { font-weight: 700; color: var(--text); }
-  .spot-meta { font-size: 0.8rem; color: var(--text-secondary); margin-top: 6px; }
-  @media (max-width: 820px){ .spotlights-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) {
+    .hero-stats { flex-direction: column; gap: 16px; }
+    .cta-buttons { flex-direction: column; align-items: center; }
+  }
 </style>
 {% endblock %}

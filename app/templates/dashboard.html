@@ -13,164 +13,388 @@
 {% block content %}
 <section class="hero">
   <h1>Dashboard</h1>
-  <p class="subtitle">Your personal Token Arena dashboard with portfolio analytics and insights.</p>
+  <p class="subtitle">Wallet overview: BTC node balance, your assets, and deposit/withdrawal history.</p>
 </section>
 
 <section class="dashboard" id="dashboard">
   <div class="dashboard-grid">
     <div class="dashboard-card">
-      <h3>Portfolio Overview</h3>
+      <h3>Deposit BTC (Lightning)</h3>
+      <form id="form-dep-btc" class="form-grid">
+        <label>
+          <span>Amount (sats)</span>
+          <input id="dep-btc-sats" class="search-input" type="number" min="1" step="1" placeholder="10000" required>
+        </label>
+        <label>
+          <span>Memo (optional)</span>
+          <input id="dep-btc-memo" class="search-input" maxlength="64" placeholder="Token Arena deposit">
+        </label>
+        <div class="actions"><button type="submit" class="btn">Create Invoice</button></div>
+      </form>
+      <div id="dep-btc-status" class="lp-status" style="display:none"></div>
+      <pre id="dep-btc-invoice" class="lp-output mono small" aria-live="polite"></pre>
+      <div class="actions" style="gap:8px">
+        <button type="button" id="dep-btc-copy" class="btn small">Copy</button>
+        <button type="button" id="dep-btc-qr-btn" class="btn small">Show QR</button>
+      </div>
+      <div id="dep-btc-qr" class="qr-wrap"></div>
+    </div>
+
+    <div class="dashboard-card">
+      <h3>Deposit RGB</h3>
+      <form id="form-dep-rgb" class="form-grid">
+        <label>
+          <span>Asset Symbol</span>
+          <select id="dep-rgb-symbol" class="search-input">
+            <option value="">Select RGB asset…</option>
+          </select>
+        </label>
+        <label>
+          <span>Amount (units)</span>
+          <input id="dep-rgb-units" class="search-input" type="number" min="1" step="1" placeholder="100" required>
+        </label>
+        <div class="actions"><button type="submit" class="btn">Create RGB Invoice</button></div>
+      </form>
+      <div class="muted small">Units reflect the asset's precision. For precision=2, 12345 units = 123.45 tokens.</div>
+      <div class="muted small" id="dep-rgb-hint"></div>
+      <div id="dep-rgb-status" class="lp-status" style="display:none"></div>
+      <pre id="dep-rgb-invoice" class="lp-output mono small" aria-live="polite"></pre>
+      <div class="actions" style="gap:8px">
+        <button type="button" id="dep-rgb-copy" class="btn small">Copy</button>
+        <button type="button" id="dep-rgb-qr-btn" class="btn small">Show QR</button>
+      </div>
+      <div id="dep-rgb-qr" class="qr-wrap"></div>
+    </div>
+
+    <div class="dashboard-card">
+      <h3>Request Withdrawal</h3>
+      <form id="form-withdraw" class="form-grid">
+        <label>
+          <span>Asset Symbol</span>
+          <select id="wd-symbol" class="search-input">
+            <option value="">Select asset…</option>
+          </select>
+        </label>
+        <label>
+          <span>Amount</span>
+          <input id="wd-amount" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.001" required>
+        </label>
+        <label>
+          <span>Destination Invoice</span>
+          <input id="wd-invoice" class="search-input" placeholder="lnbc1... or rgb1..." required>
+        </label>
+        <div class="actions" style="gap:8px"><button type="submit" class="btn">Submit Request</button><button type="button" id="wd-max" class="btn small">Use Max</button></div>
+      </form>
+      <div id="wd-status" class="lp-status" style="display:none"></div>
+    </div>
+    <div class="dashboard-card">
+      <h3>BTC Node Balance (RLN)</h3>
       <div class="portfolio-stats">
-        <div class="stat">
-          <div class="stat-label">Total Value</div>
-          <div class="stat-value" id="portfolio-value">$0.00</div>
-        </div>
-        <div class="stat">
-          <div class="stat-label">24h Change</div>
-          <div class="stat-value" id="portfolio-change">0.00%</div>
-        </div>
-        <div class="stat">
-          <div class="stat-label">Holdings</div>
-          <div class="stat-value" id="portfolio-holdings">0</div>
-        </div>
+        <div class="stat"><div class="stat-label">On-chain Confirmed</div><div id="btc-onchain-confirmed" class="stat-value">—</div></div>
+        <div class="stat"><div class="stat-label">On-chain Total</div><div id="btc-onchain-total" class="stat-value">—</div></div>
+        <div class="stat"><div class="stat-label">LN Local</div><div id="btc-ln-local" class="stat-value">—</div></div>
+        <div class="stat"><div class="stat-label">LN Remote</div><div id="btc-ln-remote" class="stat-value">—</div></div>
+      </div>
+      <div class="muted small" id="btc-node-extra"></div>
+    </div>
+
+    <div class="dashboard-card">
+      <h3>Portfolio Breakdown</h3>
+      <div class="chart-wrap">
+        <canvas id="portfolioChart" aria-label="Portfolio breakdown" role="img"></canvas>
       </div>
     </div>
 
     <div class="dashboard-card">
-      <h3>Top Holdings</h3>
-      <div class="top-holdings" id="top-holdings">
-        <div class="loading">Loading holdings...</div>
+      <h3>My Assets</h3>
+      <div class="table-wrap">
+        <table class="tb-table" id="assets-table">
+          <thead>
+            <tr><th>Symbol</th><th>Name</th><th class="num">Balance</th><th class="num">Available</th><th>RGB ID</th></tr>
+          </thead>
+          <tbody><tr><td colspan="5" class="loading">Loading assets…</td></tr></tbody>
+        </table>
       </div>
     </div>
 
     <div class="dashboard-card">
-      <h3>Recent Activity</h3>
-      <div class="recent-activity" id="recent-activity">
-        <div class="loading">Loading activity...</div>
+      <h3>Deposits</h3>
+      <div class="table-wrap">
+        <table class="tb-table" id="deposits-table">
+          <thead>
+            <tr><th>Time</th><th>Asset</th><th class="num">Amount</th><th>Status</th><th>Ref</th></tr>
+          </thead>
+          <tbody><tr><td colspan="5" class="loading">Loading deposits…</td></tr></tbody>
+        </table>
       </div>
     </div>
 
     <div class="dashboard-card">
-      <h3>Watchlist</h3>
-      <div class="watchlist" id="watchlist">
-        <div class="loading">Loading watchlist...</div>
+      <h3>Withdrawals</h3>
+      <div class="table-wrap">
+        <table class="tb-table" id="withdrawals-table">
+          <thead>
+            <tr><th>Time</th><th>Asset</th><th class="num">Amount</th><th>Status</th><th>Ref</th></tr>
+          </thead>
+          <tbody><tr><td colspan="5" class="loading">Loading withdrawals…</td></tr></tbody>
+        </table>
       </div>
     </div>
   </div>
 </section>
 
+<!-- Lightweight QR library (allowed by CSP: jsdelivr) -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script>
-// Dashboard functionality
+// Dashboard functionality (Wallet)
 (async function() {
-  const TB = window.TB || {};
+  function el(id){ return document.getElementById(id); }
+  function fmtNum(n, max=8){ const v = Number(n||0); return Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: max }) : '—'; }
+  function fmtAmt(n, p=8){ const v = Number(n||0); return Number.isFinite(v) ? v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: p }) : '0'; }
+  function fmtTs(iso){ if(!iso) return '—'; try { return new Date(iso).toLocaleString(); } catch { return iso; } }
+  function renderQR(containerId, text){ try { const cont = document.getElementById(containerId); if (!cont) return; cont.innerHTML=''; if (!text) return; const canvas = document.createElement('canvas'); cont.appendChild(canvas); if (window.QRCode && QRCode.toCanvas) { QRCode.toCanvas(canvas, text, { width: 192 }); } } catch {}
+  }
+  const assetsInfo = {};
 
-  async function loadDashboard() {
+  let portfolioChart;
+  function drawPortfolioChart(rows){
+    try{
+      const ctx = document.getElementById('portfolioChart');
+      if (!ctx) return;
+      const labels = []; const vals = []; const colors = [];
+      const palette = ['#7c5cff','#00d1b2','#ffd166','#ef476f','#06d6a0','#26547c','#f78c6b','#c2e812'];
+      (rows||[]).forEach((a, i) => { labels.push(a.symbol); vals.push(Number(a.available||a.balance||0)); colors.push(palette[i % palette.length]); });
+      if (portfolioChart) { portfolioChart.destroy(); }
+      portfolioChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 0 }] },
+        options: { plugins: { legend: { position: 'bottom', labels: { color: (document.body.classList.contains('arena') ? '#e5e7eb' : '#0f172a') } } } }
+      });
+    } catch { /* noop */ }
+  }
+
+  async function authGuard(){
+    const r = await fetch('/api/auth/me');
+    const j = await r.json();
+    if (!j.user){
+      el('dashboard').innerHTML = `
+        <div class="auth-required">
+          <h3>Authentication Required</h3>
+          <p>Please sign in to access your dashboard.</p>
+          <button class="btn" onclick="window.location.href='/settings'">Sign In</button>
+        </div>`;
+      throw new Error('unauthenticated');
+    }
+    return j.user;
+  }
+
+  async function loadNodeBTC(){
     try {
-      // Load user portfolio data
-      const userResponse = await fetch('/api/auth/me');
-      const userData = await userResponse.json();
+      const r = await fetch('/api/rln/btcbalance', { method: 'POST', headers: { 'Content-Type':'application/json' } });
+      if (!r.ok){ throw new Error('btcbalance failed'); }
+      const j = await r.json();
+      // Try common fields; otherwise fallback to JSON snippet
+      const onchain = j.onchain || j.chain || j;
+      const ln = j.ln || j.lightning || j;
+      const confirmed = onchain.confirmed || onchain.confirmed_sat || onchain.confirmed_sats || onchain.total_confirmed || 0;
+      const total = onchain.total || onchain.total_sat || onchain.total_sats || 0;
+      const lnLocal = (ln.local_msat || ln.local || 0) / (ln.local_msat ? 1000 : 1);
+      const lnRemote = (ln.remote_msat || ln.remote || 0) / (ln.remote_msat ? 1000 : 1);
+      el('btc-onchain-confirmed').textContent = fmtNum(confirmed, 8);
+      el('btc-onchain-total').textContent = fmtNum(total, 8);
+      el('btc-ln-local').textContent = fmtNum(lnLocal, 8);
+      el('btc-ln-remote').textContent = fmtNum(lnRemote, 8);
+      const extra = Object.keys(j).length > 0 ? JSON.stringify(j).slice(0, 240) + (JSON.stringify(j).length>240 ? '…' : '') : '';
+      el('btc-node-extra').textContent = extra ? `Raw: ${extra}` : '';
+    } catch(e){
+      el('btc-onchain-confirmed').textContent = '—';
+      el('btc-onchain-total').textContent = '—';
+      el('btc-ln-local').textContent = '—';
+      el('btc-ln-remote').textContent = '—';
+      el('btc-node-extra').textContent = 'Unable to fetch BTC node balance';
+    }
+  }
 
-      if (!userData.user) {
-        document.getElementById('dashboard').innerHTML = `
-          <div class="auth-required">
-            <h3>Authentication Required</h3>
-            <p>Please sign in to access your dashboard.</p>
-            <button class="btn" onclick="window.location.href='/settings'">Sign In</button>
-          </div>
-        `;
+  async function loadAssets(){
+    const tbody = document.querySelector('#assets-table tbody');
+    try{
+      const r = await fetch('/api/wallet/assets');
+      const assets = await r.json();
+      // Populate select lists for deposit RGB and withdrawal
+      const rgbSel = document.getElementById('dep-rgb-symbol');
+      const wdSel = document.getElementById('wd-symbol');
+      if (rgbSel) {
+        const opts = ['<option value="">Select RGB asset…</option>'];
+        (assets||[]).forEach(a => { assetsInfo[a.symbol] = { precision: a.precision||0, available: a.available||0, rln: a.rln_asset_id||null }; if (a.rln_asset_id) opts.push(`<option value="${a.symbol}">${a.symbol} · ${a.name}</option>`); });
+        rgbSel.innerHTML = opts.join('');
+      }
+      if (wdSel) {
+        const opts2 = ['<option value="">Select asset…</option>'];
+        (assets||[]).forEach(a => { assetsInfo[a.symbol] = assetsInfo[a.symbol] || { precision: a.precision||0, available: a.available||0, rln: a.rln_asset_id||null }; opts2.push(`<option value="${a.symbol}">${a.symbol} · ${a.name}</option>`); });
+        wdSel.innerHTML = opts2.join('');
+      }
+      if (!Array.isArray(assets) || assets.length === 0){
+        tbody.innerHTML = '<tr><td colspan="5" class="no-data">No assets yet</td></tr>';
+        drawPortfolioChart([]);
         return;
       }
+      tbody.innerHTML = assets.map(a => `
+        <tr>
+          <td>${a.symbol || ''}</td>
+          <td>${a.name || ''}</td>
+          <td class="num">${fmtAmt(a.balance, a.precision || 8)}</td>
+          <td class="num">${fmtAmt(a.available, a.precision || 8)}</td>
+          <td class="mono">${a.rln_asset_id || ''}</td>
+        </tr>
+      `).join('');
+      drawPortfolioChart(assets);
+    } catch(e){
+      tbody.innerHTML = '<tr><td colspan="5" class="error">Failed to load assets</td></tr>';
+      drawPortfolioChart([]);
+    }
+  }
 
-      // Load portfolio data
-      const portfolioResponse = await fetch(`/api/users/${userData.user.npub}`);
-      const portfolioData = await portfolioResponse.json();
-
-      if (portfolioData.portfolio) {
-        updatePortfolioOverview(portfolioData.portfolio);
-        updateTopHoldings(portfolioData.holdings || []);
+  async function loadDeposits(){
+    const tbody = document.querySelector('#deposits-table tbody');
+    try{
+      const r = await fetch('/api/wallet/deposits');
+      const rows = await r.json();
+      if (!Array.isArray(rows) || rows.length === 0){
+        tbody.innerHTML = '<tr><td colspan="5" class="no-data">No deposits</td></tr>';
+        return;
       }
-
-      // Load recent activity (placeholder)
-      updateRecentActivity([]);
-
-      // Load watchlist (placeholder)
-      updateWatchlist([]);
-
-    } catch (error) {
-      console.error('Error loading dashboard:', error);
-      document.getElementById('dashboard').innerHTML = `
-        <div class="error">
-          <h3>Error Loading Dashboard</h3>
-          <p>Unable to load your dashboard data. Please try again later.</p>
-        </div>
-      `;
+      tbody.innerHTML = rows.map(d => `
+        <tr>
+          <td>${fmtTs(d.created_at)}</td>
+          <td>${d.asset_symbol || d.asset_id}</td>
+          <td class="num">${fmtAmt(d.amount)}</td>
+          <td><span class="badge ${d.status}">${d.status}</span></td>
+          <td class="mono small">${d.external_ref || ''}</td>
+        </tr>
+      `).join('');
+    } catch(e){
+      tbody.innerHTML = '<tr><td colspan="5" class="error">Failed to load deposits</td></tr>';
     }
   }
 
-  function updatePortfolioOverview(portfolio) {
-    const totalValue = portfolio.total_value_usd || 0;
-    const change24h = portfolio.change_24h || 0;
-    const holdingsCount = portfolio.holdings_count || 0;
-
-    document.getElementById('portfolio-value').textContent = `$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    document.getElementById('portfolio-change').textContent = `${change24h >= 0 ? '+' : ''}${change24h.toFixed(2)}%`;
-    document.getElementById('portfolio-change').className = `stat-value ${change24h >= 0 ? 'positive' : 'negative'}`;
-    document.getElementById('portfolio-holdings').textContent = holdingsCount;
-  }
-
-  function updateTopHoldings(holdings) {
-    const container = document.getElementById('top-holdings');
-
-    if (holdings.length === 0) {
-      container.innerHTML = '<div class="no-data">No holdings found</div>';
-      return;
+  async function loadWithdrawals(){
+    const tbody = document.querySelector('#withdrawals-table tbody');
+    try{
+      const r = await fetch('/api/wallet/withdrawals');
+      const rows = await r.json();
+      if (!Array.isArray(rows) || rows.length === 0){
+        tbody.innerHTML = '<tr><td colspan="5" class="no-data">No withdrawals</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(w => `
+        <tr>
+          <td>${fmtTs(w.created_at)}</td>
+          <td>${w.asset_symbol || w.asset_id}</td>
+          <td class="num">${fmtAmt(w.amount)}</td>
+          <td><span class="badge ${w.status}">${w.status}</span></td>
+          <td class="mono small">${w.external_ref || ''}</td>
+        </tr>
+      `).join('');
+    } catch(e){
+      tbody.innerHTML = '<tr><td colspan="5" class="error">Failed to load withdrawals</td></tr>';
     }
-
-    container.innerHTML = holdings.slice(0, 5).map(holding => `
-      <div class="holding-item">
-        <div class="holding-symbol">${holding.symbol}</div>
-        <div class="holding-amount">${holding.amount || 0}</div>
-        <div class="holding-value">$${(holding.value_usd || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-      </div>
-    `).join('');
   }
 
-  function updateRecentActivity(activities) {
-    const container = document.getElementById('recent-activity');
-
-    if (activities.length === 0) {
-      container.innerHTML = '<div class="no-data">No recent activity</div>';
-      return;
+  async function init(){
+    try{ await authGuard(); } catch { return; }
+    // Bind Deposit BTC
+    const f1 = document.getElementById('form-dep-btc');
+    if (f1) {
+      f1.addEventListener('submit', async (ev)=>{
+        ev.preventDefault();
+        const sats = parseInt(document.getElementById('dep-btc-sats').value||'0',10);
+        const memo = document.getElementById('dep-btc-memo').value||'';
+        const st = document.getElementById('dep-btc-status');
+        const out = document.getElementById('dep-btc-invoice');
+        st.style.display='block'; st.className='lp-status info'; st.textContent='Creating invoice…'; out.textContent='';
+        try{
+          const resp = await fetch('/api/wallet/deposit/btc_invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount_sats: sats, memo }) });
+          const j = await resp.json();
+          if (!resp.ok) throw new Error(j.error||'failed');
+          st.className='lp-status success'; st.textContent='Invoice created. Pay to deposit BTC.';
+          out.textContent = j.invoice || '';
+          await loadDeposits();
+        } catch(e){ st.className='lp-status error'; st.textContent='Failed to create invoice'; }
+      });
     }
-
-    container.innerHTML = activities.slice(0, 5).map(activity => `
-      <div class="activity-item">
-        <div class="activity-type">${activity.type}</div>
-        <div class="activity-details">${activity.details}</div>
-        <div class="activity-time">${activity.timestamp}</div>
-      </div>
-    `).join('');
-  }
-
-  function updateWatchlist(watchlist) {
-    const container = document.getElementById('watchlist');
-
-    if (watchlist.length === 0) {
-      container.innerHTML = '<div class="no-data">No tokens in watchlist</div>';
-      return;
+    // Bind Deposit RGB
+    const f2 = document.getElementById('form-dep-rgb');
+    if (f2) {
+      function updateRgbConverted(){
+        const sym = document.getElementById('dep-rgb-symbol').value||'';
+        const units = parseInt(document.getElementById('dep-rgb-units').value||'0',10);
+        const info = assetsInfo[sym];
+        const hint = document.getElementById('dep-rgb-hint');
+        if (!info || !units){ hint.textContent = ''; return; }
+        const p = info.precision||0; const tokens = units / Math.pow(10, p);
+        hint.textContent = `Converted: ${tokens.toLocaleString(undefined,{maximumFractionDigits: p})} ${sym}`;
+      }
+      document.getElementById('dep-rgb-symbol').addEventListener('change', updateRgbConverted);
+      document.getElementById('dep-rgb-units').addEventListener('input', updateRgbConverted);
+      f2.addEventListener('submit', async (ev)=>{
+        ev.preventDefault();
+        const sym = document.getElementById('dep-rgb-symbol').value||'';
+        const units = parseInt(document.getElementById('dep-rgb-units').value||'0',10);
+        const st = document.getElementById('dep-rgb-status');
+        const out = document.getElementById('dep-rgb-invoice');
+        st.style.display='block'; st.className='lp-status info'; st.textContent='Creating RGB invoice…'; out.textContent='';
+        try{
+          const resp = await fetch('/api/wallet/deposit/rgb_invoice', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ symbol: sym, amount_units: units }) });
+          const j = await resp.json();
+          if (!resp.ok) throw new Error(j.error||'failed');
+          st.className='lp-status success'; st.textContent='RGB invoice created. Pay to deposit.';
+          out.textContent = j.invoice || '';
+          renderQR('dep-rgb-qr', j.invoice || '');
+          await loadDeposits();
+        } catch(e){ st.className='lp-status error'; st.textContent='Failed to create RGB invoice'; }
+      });
     }
+    // Bind Withdraw
+    const f3 = document.getElementById('form-withdraw');
+    if (f3) {
+      f3.addEventListener('submit', async (ev)=>{
+        ev.preventDefault();
+        const sym = document.getElementById('wd-symbol').value||'';
+        const amt = parseFloat(document.getElementById('wd-amount').value||'0');
+        const inv = document.getElementById('wd-invoice').value||'';
+        const st = document.getElementById('wd-status');
+        st.style.display='block'; st.className='lp-status info'; st.textContent='Submitting withdrawal…';
+        try{
+          const resp = await fetch('/api/wallet/withdraw/request', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ symbol: sym, amount: amt, invoice: inv }) });
+          const j = await resp.json();
+          if (!resp.ok) throw new Error(j.error||'failed');
+          st.className='lp-status success'; st.textContent='Withdrawal request submitted.';
+          await Promise.all([loadAssets(), loadWithdrawals()]);
+        } catch(e){ st.className='lp-status error'; st.textContent='Failed to submit withdrawal'; }
+      });
+    }
+    // Copy & QR buttons
+    const copyBtc = document.getElementById('dep-btc-copy');
+    if (copyBtc){ copyBtc.addEventListener('click', ()=>{ const t=(document.getElementById('dep-btc-invoice').textContent||'').trim(); if (!t) return; navigator.clipboard.writeText(t).then(()=>{ window.TB&&TB.showToast&&TB.showToast('Invoice copied'); }); }); }
+    const qrBtc = document.getElementById('dep-btc-qr-btn');
+    if (qrBtc){ qrBtc.addEventListener('click', ()=>{ const t=(document.getElementById('dep-btc-invoice').textContent||'').trim(); renderQR('dep-btc-qr', t); }); }
+    const copyRgb = document.getElementById('dep-rgb-copy');
+    if (copyRgb){ copyRgb.addEventListener('click', ()=>{ const t=(document.getElementById('dep-rgb-invoice').textContent||'').trim(); if (!t) return; navigator.clipboard.writeText(t).then(()=>{ window.TB&&TB.showToast&&TB.showToast('Invoice copied'); }); }); }
+    const qrRgb = document.getElementById('dep-rgb-qr-btn');
+    if (qrRgb){ qrRgb.addEventListener('click', ()=>{ const t=(document.getElementById('dep-rgb-invoice').textContent||'').trim(); renderQR('dep-rgb-qr', t); }); }
+    // Withdraw Use Max
+    const wdMax = document.getElementById('wd-max');
+    if (wdMax){ wdMax.addEventListener('click', ()=>{ const sym=(document.getElementById('wd-symbol').value||''); const info=assetsInfo[sym]; if (!info) return; const inp=document.getElementById('wd-amount'); inp.value = String(info.available||0); }); }
 
-    container.innerHTML = watchlist.slice(0, 5).map(token => `
-      <div class="watchlist-item">
-        <div class="watchlist-symbol">${token.symbol}</div>
-        <div class="watchlist-price">$${(token.price_usd || 0).toFixed(6)}</div>
-        <div class="watchlist-change ${token.change_24h >= 0 ? 'positive' : 'negative'}">${token.change_24h >= 0 ? '+' : ''}${token.change_24h.toFixed(2)}%</div>
-      </div>
-    `).join('');
+    await Promise.all([
+      loadNodeBTC(),
+      loadAssets(),
+      loadDeposits(),
+      loadWithdrawals(),
+    ]);
   }
 
-  // Initialize dashboard
-  loadDashboard();
+  init();
 })();
 </script>
 
@@ -195,6 +419,9 @@
   margin-bottom: 15px;
   color: var(--text);
 }
+
+.chart-wrap { position: relative; height: 260px; }
+#portfolioChart { width: 100%; height: 100%; }
 
 .portfolio-stats {
   display: grid;
@@ -226,37 +453,34 @@
   color: #ef4444;
 }
 
-.holding-item, .activity-item, .watchlist-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
 
-.holding-item:last-child, .activity-item:last-child, .watchlist-item:last-child {
-  border-bottom: none;
-}
+/* Tables */
+.table-wrap { overflow-x: auto; }
+.tb-table { width: 100%; border-collapse: collapse; }
+.tb-table th, .tb-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+.tb-table thead th { font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; }
+.tb-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tb-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; word-break: break-all; }
+.tb-table .small { font-size: 0.8rem; }
+.badge { display: inline-block; padding: 2px 6px; border-radius: 8px; font-size: 0.75rem; border: 1px solid var(--border); color: var(--text); }
+.badge.pending { background: rgba(251, 191, 36, 0.15); border-color: rgba(251, 191, 36, 0.35); }
+.badge.settled, .badge.sent { background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.35); }
+.badge.failed { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35); }
 
-.holding-symbol, .activity-type, .watchlist-symbol {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.holding-amount, .activity-details {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-.holding-value, .activity-time, .watchlist-price {
-  color: var(--text);
-  font-size: 0.875rem;
-}
-
-.watchlist-change {
-  font-size: 0.875rem;
-  font-weight: 600;
-}
+/* Forms and statuses */
+.form-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+.form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; }
+.form-grid label span { color: var(--text-secondary); }
+.form-grid .search-input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+.form-grid .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.lp-status { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 0.875rem; }
+.lp-status.info { background: rgba(124,92,255,0.1); color: #c9c1ff; border: 1px solid rgba(124,92,255,0.3); }
+.lp-status.success { background: rgba(16,185,129,0.12); color: #a7f3d0; border: 1px solid rgba(16,185,129,0.35); }
+.lp-status.error { background: rgba(239,68,68,0.12); color: #fecaca; border: 1px solid rgba(239,68,68,0.35); }
+.lp-output { margin-top: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-height: 200px; overflow: auto; }
+.muted { color: var(--text-secondary); }
+.small { font-size: 0.8rem; }
+@media (max-width: 720px){ .form-grid { grid-template-columns: 1fr; } }
 
 .auth-required, .error {
   text-align: center;

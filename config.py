@@ -11,7 +11,11 @@ class Config:
     # Session cookie security
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SECURE = not DEBUG
+    # Secure cookies off for local dev over http (e.g., localhost) or when DEBUG=1
+    # This prevents dropped cookies on http during development.
+    SESSION_COOKIE_SECURE = not (
+        DEBUG or os.getenv("SITE_URL", "http://localhost:5000").startswith("http://")
+    )
     PERMANENT_SESSION_LIFETIME = timedelta(seconds=int(os.getenv("SESSION_LIFETIME_SECONDS", "2592000")))  # 30 days default
     # Upload limits
     AVATAR_MAX_BYTES = int(os.getenv("AVATAR_MAX_BYTES", str(2 * 1024 * 1024)))  # 2MB default
@@ -46,3 +50,6 @@ class Config:
     ANALYTICS_GA4_ID = os.getenv("ANALYTICS_GA4_ID")  # e.g., G-XXXXXXXXXX
     # Social
     TWITTER_SITE = os.getenv("TWITTER_SITE")  # e.g., @tokenarena
+
+    # Dev toggles
+    NOSTR_VERIFY_DISABLED = os.getenv("NOSTR_VERIFY_DISABLED", "0") == "1"

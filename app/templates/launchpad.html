@@ -23,520 +23,141 @@
 {% block content %}
 <section class="hero">
   <h1>Launchpad</h1>
-  <p class="subtitle">Discover new and upcoming tokens before they hit the mainstream.</p>
+  <p class="subtitle">Mint new RGB assets and create custom BTC↔RGB vAMM pools.</p>
 </section>
 
-<section class="launchpad" id="launchpad">
-  <div class="launchpad-filters">
-    <div class="filter-group">
-      <h3>Status</h3>
-      <div class="filter-options">
-        <label class="filter-option">
-          <input type="radio" name="status" value="upcoming" checked>
-          <span>Upcoming</span>
+<section class="lp-wrap">
+  <div class="lp-grid">
+    <div class="lp-card">
+      <h2>Mint New RGB Asset</h2>
+      <p class="muted">Issues a new RGB NIA asset via your configured RLN node and creates a BTC↔RGB vAMM with virtual liquidity.</p>
+      <form id="mint-form" class="form-grid">
+        <label>
+          <span>Ticker</span>
+          <input id="mint-ticker" class="search-input" maxlength="20" placeholder="e.g. ARENA" required>
         </label>
-        <label class="filter-option">
-          <input type="radio" name="status" value="live">
-          <span>Live</span>
+        <label>
+          <span>Name</span>
+          <input id="mint-name" class="search-input" maxlength="128" placeholder="Token Arena" required>
         </label>
-        <label class="filter-option">
-          <input type="radio" name="status" value="completed">
-          <span>Completed</span>
+        <label>
+          <span>Precision</span>
+          <input id="mint-precision" class="search-input" type="number" min="0" max="18" value="0">
         </label>
-      </div>
-    </div>
-
-    <div class="filter-group">
-      <h3>Category</h3>
-      <div class="filter-options">
-        <label class="filter-option">
-          <input type="checkbox" value="defi" checked>
-          <span>DeFi</span>
+        <label>
+          <span>Total Supply (ints)</span>
+          <input id="mint-supply" class="search-input" type="number" min="1" step="1" placeholder="1000000" required>
         </label>
-        <label class="filter-option">
-          <input type="checkbox" value="gaming" checked>
-          <span>Gaming</span>
+        <label>
+          <span>Initial Price (BTC per RGB)</span>
+          <input id="mint-initial-price" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.00001" required>
         </label>
-        <label class="filter-option">
-          <input type="checkbox" value="nft" checked>
-          <span>NFT</span>
+        <label>
+          <span>Virtual Depth (BTC)</span>
+          <input id="mint-virtual-depth" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.25" required>
         </label>
-        <label class="filter-option">
-          <input type="checkbox" value="utility" checked>
-          <span>Utility</span>
-        </label>
-      </div>
-    </div>
-
-    <div class="filter-group">
-      <h3>Sort By</h3>
-      <select id="sort-by" class="sort-select">
-        <option value="launch_date">Launch Date</option>
-        <option value="raised">Amount Raised</option>
-        <option value="participants">Participants</option>
-        <option value="category">Category</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="launchpad-grid" id="launchpad-grid">
-    <div class="loading">Loading launchpad projects...</div>
-  </div>
-</section>
-
-<script>
-// Launchpad functionality
-(async function() {
-  const TB = window.TB || {};
-
-  // Mock data for launchpad projects
-  const mockProjects = [
-    {
-      id: 1,
-      name: "DeFi Yield Protocol",
-      symbol: "DYP",
-      category: "defi",
-      status: "upcoming",
-      launch_date: "2024-02-15",
-      description: "Next-generation yield farming protocol with enhanced security features.",
-      raised: 2500000,
-      target: 5000000,
-      participants: 1200,
-      image: "/static/img/default-token.png",
-      website: "https://example.com",
-      twitter: "https://twitter.com/example",
-      telegram: "https://t.me/example"
-    },
-    {
-      id: 2,
-      name: "GameFi Metaverse",
-      symbol: "GFM",
-      category: "gaming",
-      status: "live",
-      launch_date: "2024-01-20",
-      description: "Play-to-earn gaming platform with NFT integration and metaverse elements.",
-      raised: 4500000,
-      target: 5000000,
-      participants: 3500,
-      image: "/static/img/default-token.png",
-      website: "https://example.com",
-      twitter: "https://twitter.com/example",
-      telegram: "https://t.me/example"
-    },
-    {
-      id: 3,
-      name: "NFT Marketplace Pro",
-      symbol: "NMP",
-      category: "nft",
-      status: "upcoming",
-      launch_date: "2024-03-01",
-      description: "Advanced NFT marketplace with low fees and creator royalties.",
-      raised: 1200000,
-      target: 3000000,
-      participants: 800,
-      image: "/static/img/default-token.png",
-      website: "https://example.com",
-      twitter: "https://twitter.com/example",
-      telegram: "https://t.me/example"
-    },
-    {
-      id: 4,
-      name: "Utility Token X",
-      symbol: "UTX",
-      category: "utility",
-      status: "completed",
-      launch_date: "2023-12-01",
-      description: "Multi-chain utility token powering the next generation of dApps.",
-      raised: 8000000,
-      target: 8000000,
-      participants: 5000,
-      image: "/static/img/default-token.png",
-      website: "https://example.com",
-      twitter: "https://twitter.com/example",
-      telegram: "https://t.me/example"
-    }
-  ];
-
-  function renderProjects(projects) {
-    const grid = document.getElementById('launchpad-grid');
-
-    if (projects.length === 0) {
-      grid.innerHTML = '<div class="no-projects">No projects found matching your criteria.</div>';
-      return;
-    }
-
-    grid.innerHTML = projects.map(project => {
-      const progress = (project.raised / project.target) * 100;
-      const statusClass = project.status;
-      const statusText = project.status.charAt(0).toUpperCase() + project.status.slice(1);
-
-      return `
-        <div class="launchpad-card" data-category="${project.category}" data-status="${project.status}">
-          <div class="project-header">
-            <div class="project-image">
-              <img src="${project.image}" alt="${project.name}" onerror="this.src='/static/img/default-token.png'">
-            </div>
-            <div class="project-info">
-              <h3>${project.name}</h3>
-              <div class="project-symbol">${project.symbol}</div>
-              <div class="project-category">${project.category.toUpperCase()}</div>
-            </div>
-            <div class="project-status ${statusClass}">${statusText}</div>
-          </div>
-
-          <div class="project-description">${project.description}</div>
-
-          <div class="project-stats">
-            <div class="stat">
-              <div class="stat-label">Raised</div>
-              <div class="stat-value">$${(project.raised / 1000000).toFixed(1)}M</div>
-            </div>
-            <div class="stat">
-              <div class="stat-label">Target</div>
-              <div class="stat-value">$${(project.target / 1000000).toFixed(1)}M</div>
-            </div>
-            <div class="stat">
-              <div class="stat-label">Participants</div>
-              <div class="stat-value">${project.participants.toLocaleString()}</div>
-            </div>
-          </div>
-
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: ${Math.min(progress, 100)}%"></div>
-            <div class="progress-text">${progress.toFixed(1)}% funded</div>
-          </div>
-
-          <div class="project-footer">
-            <div class="launch-date">Launch: ${new Date(project.launch_date).toLocaleDateString()}</div>
-            <div class="project-links">
-              ${project.website ? `<a href="${project.website}" target="_blank" rel="noopener" class="link-btn">Website</a>` : ''}
-              ${project.twitter ? `<a href="${project.twitter}" target="_blank" rel="noopener" class="link-btn">Twitter</a>` : ''}
-              ${project.telegram ? `<a href="${project.telegram}" target="_blank" rel="noopener" class="link-btn">Telegram</a>` : ''}
-            </div>
-          </div>
-
-          ${project.status === 'live' ? `
-            <div class="project-actions">
-              <button class="btn primary">Participate Now</button>
-            </div>
-          ` : ''}
+        <div class="actions">
+          <button type="submit" class="btn primary">Mint & Create Pool</button>
         </div>
-      `;
-    }).join('');
-  }
+      </form>
+      <div id="mint-status" class="lp-status" style="display:none"></div>
+      <pre id="mint-output" class="lp-output" aria-live="polite"></pre>
+    </div>
 
-  function filterProjects() {
-    const statusFilter = document.querySelector('input[name="status"]:checked')?.value || 'upcoming';
-    const categoryFilters = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    <div class="lp-card">
+      <h2>Create Pool for Existing RGB</h2>
+      <p class="muted">Create a BTC↔RGB vAMM for an existing RGB asset. Select by symbol or paste the RLN Asset ID.</p>
+      <form id="pool-form" class="form-grid">
+        <label>
+          <span>Existing Symbol</span>
+          <select id="existing-asset-select" class="search-input">
+            <option value="">Select asset…</option>
+          </select>
+        </label>
+        <label>
+          <span>RLN Asset ID</span>
+          <input id="pool-rln-asset-id" class="search-input" placeholder="rgb1... (optional if symbol chosen)">
+        </label>
+        <label>
+          <span>Initial Price (BTC per RGB)</span>
+          <input id="pool-initial-price" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.00001" required>
+        </label>
+        <label>
+          <span>Virtual Depth (BTC)</span>
+          <input id="pool-virtual-depth" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.25" required>
+        </label>
+        <label>
+          <span>Total Fee (bps)</span>
+          <input id="pool-fee-bps" class="search-input" type="number" min="0" max="500" value="100">
+        </label>
+        <label>
+          <span>LP Fee (bps)</span>
+          <input id="pool-lp-fee-bps" class="search-input" type="number" min="0" max="500" value="50">
+        </label>
+        <label>
+          <span>Platform Fee (bps)</span>
+          <input id="pool-platform-fee-bps" class="search-input" type="number" min="0" max="500" value="50">
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn">Create Pool</button>
+        </div>
+      </form>
+      <div id="pool-status" class="lp-status" style="display:none"></div>
+      <pre id="pool-output" class="lp-output" aria-live="polite"></pre>
+    </div>
+  </div>
 
-    let filtered = mockProjects.filter(project => {
-      const statusMatch = project.status === statusFilter;
-      const categoryMatch = categoryFilters.length === 0 || categoryFilters.includes(project.category);
-      return statusMatch && categoryMatch;
-    });
+  <div class="lp-card">
+    <h2>Existing RGB Assets</h2>
+    <div id="existing-assets-list" class="assets-list"></div>
+  </div>
+  
+  <div class="lp-grid">
+    <div class="lp-card">
+      <h2>Recent Activity</h2>
+      <div id="lp-activity" class="activity-list">
+        <div class="muted small">No activity yet</div>
+      </div>
+    </div>
+    <div class="lp-card">
+      <h2>Tips</h2>
+      <ul class="tips-list">
+        <li>Use Mint & Create Pool to issue a new RGB asset and instantly create a BTC↔RGB vAMM.</li>
+        <li>Prefer higher virtual depth for smoother price impact in early trading.</li>
+        <li>You can also create a pool for an existing RGB by selecting the symbol or providing the RLN Asset ID.</li>
+        <li>In Demo Mode, responses are mocked so you can trial the full workflow safely.</li>
+      </ul>
+    </div>
+  </div>
+</section>
 
-    const sortBy = document.getElementById('sort-by').value;
-    filtered.sort((a, b) => {
-      switch(sortBy) {
-        case 'launch_date':
-          return new Date(a.launch_date) - new Date(b.launch_date);
-        case 'raised':
-          return b.raised - a.raised;
-        case 'participants':
-          return b.participants - a.participants;
-        case 'category':
-          return a.category.localeCompare(b.category);
-        default:
-          return 0;
-      }
-    });
-
-    renderProjects(filtered);
-  }
-
-  function initializeEventListeners() {
-    // Status filter
-    document.querySelectorAll('input[name="status"]').forEach(radio => {
-      radio.addEventListener('change', filterProjects);
-    });
-
-    // Category filters
-    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-      checkbox.addEventListener('change', filterProjects);
-    });
-
-    // Sort by
-    document.getElementById('sort-by').addEventListener('change', filterProjects);
-  }
-
-  // Initialize launchpad
-  function initLaunchpad() {
-    initializeEventListeners();
-    filterProjects(); // Initial render
-  }
-
-  // Start the launchpad
-  initLaunchpad();
-})();
-</script>
+<script src="/static/js/launchpad.js"></script>
 
 <style>
-.launchpad-filters {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 30px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-.filter-group h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  color: var(--text);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.filter-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.filter-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  color: var(--text);
-}
-
-.filter-option input[type="checkbox"],
-.filter-option input[type="radio"] {
-  cursor: pointer;
-}
-
-.sort-select {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 0.875rem;
-}
-
-.launchpad-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 20px;
-}
-
-.launchpad-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.launchpad-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
-}
-
-.project-header {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 15px;
-}
-
-.project-image {
-  width: 50px;
-  height: 50px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.project-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.project-info {
-  flex: 1;
-}
-
-.project-info h3 {
-  margin: 0;
-  font-size: 1.125rem;
-  color: var(--text);
-}
-
-.project-symbol {
-  font-size: 0.875rem;
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.project-category {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.project-status {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.project-status.upcoming {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.project-status.live {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.project-status.completed {
-  background: #e5e7eb;
-  color: #374151;
-}
-
-.project-description {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  line-height: 1.4;
-  margin-bottom: 15px;
-}
-
-.project-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
-  margin-bottom: 15px;
-}
-
-.project-stats .stat {
-  text-align: center;
-}
-
-.project-stats .stat-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-
-.project-stats .stat-value {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.progress-bar {
-  position: relative;
-  height: 8px;
-  background: var(--bg);
-  border-radius: 4px;
-  margin-bottom: 15px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.project-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.launch-date {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.project-links {
-  display: flex;
-  gap: 8px;
-}
-
-.link-btn {
-  padding: 4px 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  text-decoration: none;
-  font-size: 0.75rem;
-  transition: background 0.2s ease;
-}
-
-.link-btn:hover {
-  background: var(--border);
-}
-
-.project-actions {
-  text-align: center;
-}
-
-.project-actions .btn.primary {
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: white;
-  border: none;
-  font-weight: 600;
-}
-
-.project-actions .btn.primary:hover {
-  opacity: 0.9;
-}
-
-.no-projects {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-secondary);
-  font-size: 1.125rem;
-  grid-column: 1 / -1;
-}
-
-.loading {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--text-secondary);
-  font-size: 1.125rem;
-  grid-column: 1 / -1;
-}
+  .lp-wrap { display: grid; gap: 20px; }
+  .lp-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .lp-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .form-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+  .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; }
+  .form-grid label span { color: var(--text-secondary); }
+  .form-grid .search-input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+  .form-grid .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+  .lp-status { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 0.875rem; }
+  .lp-status.info { background: rgba(124,92,255,0.1); color: #c9c1ff; border: 1px solid rgba(124,92,255,0.3); }
+  .lp-status.success { background: rgba(16,185,129,0.12); color: #a7f3d0; border: 1px solid rgba(16,185,129,0.35); }
+  .lp-status.error { background: rgba(239,68,68,0.12); color: #fecaca; border: 1px solid rgba(239,68,68,0.35); }
+  .lp-output { margin-top: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-height: 240px; overflow: auto; }
+  .assets-list { display: grid; gap: 10px; }
+  .asset-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg); }
+  .asset-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+  .asset-sym { font-weight: 700; color: var(--text); }
+  .asset-name { color: var(--text-secondary); }
+  .asset-meta { font-size: 0.8rem; color: var(--text-secondary); }
+  .asset-id { margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 0.78rem; color: var(--text-secondary); word-break: break-all; }
+  .activity-list { display: grid; gap: 8px; }
+  .activity-item { display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background: var(--bg); }
+  .activity-item .meta { color: var(--text-secondary); font-size: 0.8rem; }
+  .tips-list { margin: 0; padding-left: 18px; color: var(--text-secondary); line-height: 1.5; }
+  @media (max-width: 720px){ .form-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}

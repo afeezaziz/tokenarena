@@ -53,6 +53,24 @@ function fmtNumber(n) {
 }
 function fmtPct(n){ return `${(Number(n) >= 0 ? '+' : '')}${Number(n).toFixed(2)}%`; }
 
+// Simple watchlist using localStorage
+const WATCH_KEY = 'tb_watchlist';
+function getWatchlist(){
+  try { const v = JSON.parse(localStorage.getItem(WATCH_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function isWatched(sym){
+  if (!sym) return false; const s = String(sym).toUpperCase();
+  return getWatchlist().includes(s);
+}
+function toggleWatchlist(sym){
+  if (!sym) return false; const s = String(sym).toUpperCase();
+  const list = getWatchlist();
+  const idx = list.indexOf(s);
+  if (idx >= 0) list.splice(idx, 1); else list.push(s);
+  try { localStorage.setItem(WATCH_KEY, JSON.stringify(list)); } catch {}
+  return list.includes(s);
+}
+
 function metricLabel(m){
   switch (m) {
     case 'change_24h': return '24h';
@@ -125,9 +143,16 @@ function renderTokensTable(){
     tbody.appendChild(tr);
     return;
   }
+  const lastTh = document.querySelector('.tokens-table thead th:last-child');
+  const hasActionsCol = !!(document.querySelector('.tokens-table thead .actions-col') || (lastTh && /actions/i.test((lastTh.textContent||'').trim())));
   tokensData.forEach((t, i) => {
     const tr = document.createElement('tr');
     tr.dataset.symbol = t.symbol;
+    let actionsHtml = '';
+    if (hasActionsCol){
+      const watched = isWatched && isWatched(t.symbol);
+      actionsHtml = `<td class="actions"><a class="btn small" href="/t/${encodeURIComponent(t.symbol)}">View</a> <button class="btn small star-btn" data-symbol="${t.symbol}" aria-pressed="${watched?'true':'false'}">${watched?'★':'☆'}</button></td>`;
+    }
     tr.innerHTML = `
       <td>${(currentPage-1)*pageSize + i + 1}</td>
       <td><a href="/t/${encodeURIComponent(t.symbol)}"><strong>${t.symbol}</strong></a> <span class="muted">${t.name}</span></td>
@@ -137,6 +162,7 @@ function renderTokensTable(){
       <td>${fmtNumber(t.holders_count)}</td>
       <td class="metric-cell">${formatMetric(tableMetric, metricValue(t, tableMetric))}</td>
       <td style="color:${t.change_24h>=0?'#00d1b2':'#ff5c7c'}">${fmtPct(t.change_24h)}</td>
+      ${actionsHtml}
     `;
     tbody.appendChild(tr);
   });
@@ -209,6 +235,19 @@ function bindTokensTableSorting(){
   const tbody = document.getElementById('tokens-tbody');
   if (tbody){
     tbody.addEventListener('click', (e) => {
+      const star = e.target.closest('button.star-btn');
+      if (star){
+        const sym = star.dataset.symbol;
+        if (sym && toggleWatchlist){
+          const on = toggleWatchlist(sym);
+          star.textContent = on ? '★' : '☆';
+          star.setAttribute('aria-pressed', on ? 'true' : 'false');
+          if (window.TB && TB.showToast) TB.showToast(on ? `Added ${sym} to watchlist` : `Removed ${sym} from watchlist`);
+        }
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
       const a = e.target.closest('a');
       if (a) return; // let anchor clicks work
       const tr = e.target.closest('tr');
@@ -352,6 +391,29 @@ async function loadTopMovers(){
   });
 }
 
+// Footer ticker using top movers
+async function initTicker(){
+  const track = document.getElementById('ticker-track') || (document.getElementById('ticker') && document.getElementById('ticker').querySelector('.ticker-track'));
+  if (!track) return;
+  try{
+    const res = await fetch('/api/top-movers?metric=change_24h&limit=12');
+    const items = await res.json();
+    track.innerHTML = '';
+    const make = (m) => {
+      const val = (m.value !== undefined ? m.value : m.change_24h);
+      const up = Number(val) >= 0;
+      const el = document.createElement('div');
+      el.className = 'tick-item';
+      el.innerHTML = `<span class="sym">${m.symbol}</span><span class="val ${up?'up':'down'}">${formatMetric(m.metric || 'change_24h', val)}</span>`;
+      return el;
+    };
+    // Duplicate to create continuous strip
+    for (let k=0; k<2; k++){
+      (items || []).forEach(m => track.appendChild(make(m)));
+    }
+  } catch(e){ /* noop */ }
+}
+
 async function loadTokens(){
   bindTokensTableSorting();
   await fetchTokensData();
@@ -389,15 +451,33 @@ async function loadGlobalCharts(range='30d'){
   if (tokensChart) tokensChart.destroy();
   if (holdersChart) holdersChart.destroy();
 
+  const chartType = (localStorage.getItem('tb_chart_type') || 'line');
+  const tokensBaseType = (chartType === 'bar') ? 'bar' : 'line';
+  const indicator = (localStorage.getItem('tb_indicator') || 'none');
+  // Simple SMA overlay
+  function simpleSMA(arr, windowSize=5){
+    const out = [];
+    for (let i=0; i<arr.length; i++){
+      const s = Math.max(0, i - windowSize + 1);
+      let sum = 0, c = 0;
+      for (let j=s; j<=i; j++){ sum += Number(arr[j]||0); c++; }
+      out.push(c ? Number((sum/c).toFixed(2)) : 0);
+    }
+    return out;
+  }
+  const extraDatasets = [];
+  if (indicator === 'sma' || indicator === 'ema'){
+    extraDatasets.push({ label: indicator.toUpperCase(), data: simpleSMA(d.tokens, 5), borderColor: '#ffd166', backgroundColor: 'rgba(255,209,102,0.2)', tension: 0.3, fill: false, borderDash: [4,3] });
+  }
   tokensChart = new Chart(ctx1, {
-    type: 'line',
+    type: tokensBaseType,
     data: {
       labels: d.labels,
-      datasets: [{
+      datasets: ([{
         label: 'Tokens', data: d.tokens,
         borderColor: '#7c5cff', backgroundColor: 'rgba(124,92,255,0.2)', tension: 0.3,
         fill: true
-      }]
+      }]).concat(extraDatasets)
     },
     options: commonOptions
   });
@@ -449,6 +529,75 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   await loadGlobalCharts(currentRange);
   await loadChangelogWidget();
+
+  // Optional chart controls (Arena advanced UI)
+  const chartTypeSeg = document.getElementById('chart-type');
+  if (chartTypeSeg){
+    const stored = localStorage.getItem('tb_chart_type') || 'line';
+    const btnStored = chartTypeSeg.querySelector(`.btn[data-type="${stored}"]`);
+    if (btnStored){ chartTypeSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active')); btnStored.classList.add('active'); }
+    chartTypeSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn'); if (!btn) return;
+      chartTypeSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      localStorage.setItem('tb_chart_type', btn.dataset.type);
+      loadGlobalCharts(window.TB && TB.globalRange ? TB.globalRange : currentRange);
+    });
+  }
+  const indicatorsSeg = document.getElementById('indicators');
+  if (indicatorsSeg){
+    const storedI = localStorage.getItem('tb_indicator') || 'none';
+    const btnStoredI = indicatorsSeg.querySelector(`.btn[data-indicator="${storedI}"]`);
+    if (btnStoredI){ indicatorsSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active')); btnStoredI.classList.add('active'); }
+    indicatorsSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn'); if (!btn) return;
+      indicatorsSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      localStorage.setItem('tb_indicator', btn.dataset.indicator);
+      loadGlobalCharts(window.TB && TB.globalRange ? TB.globalRange : currentRange);
+    });
+  }
+
+  // Reset filters and Save View (Arena advanced UI)
+  const resetBtn = document.getElementById('reset-filters');
+  if (resetBtn){
+    resetBtn.addEventListener('click', () => {
+      localStorage.removeItem('tb_tokens_query');
+      localStorage.removeItem('tb_min_mcap');
+      localStorage.removeItem('tb_min_volume');
+      localStorage.setItem('tb_sort_key','market_cap_usd');
+      localStorage.setItem('tb_sort_dir','desc');
+      localStorage.setItem('tb_sort_metric','0');
+      tokensQuery=''; minMcap=''; minVolume=''; sortKey='market_cap_usd'; sortDir='desc'; sortByMetric=false;
+      currentPage = 1; localStorage.setItem('tb_tokens_page','1');
+      fetchTokensData();
+      if (window.TB && TB.showToast) TB.showToast('Filters reset');
+    });
+  }
+  const saveBtn = document.getElementById('save-view');
+  if (saveBtn){
+    saveBtn.addEventListener('click', () => {
+      const view = { tokensQuery, minMcap, minVolume, sortKey, sortDir, sortByMetric, tableMetric, sparkDays, pageSize, ts: Date.now() };
+      localStorage.setItem('tb_saved_view', JSON.stringify(view));
+      if (window.TB && TB.showToast) TB.showToast('View saved');
+    });
+  }
+  const tableViewSeg = document.getElementById('table-view');
+  if (tableViewSeg){
+    const curView = localStorage.getItem('tb_table_view') || 'table';
+    const btnStored = tableViewSeg.querySelector(`.btn[data-view="${curView}"]`);
+    if (btnStored){ tableViewSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active')); btnStored.classList.add('active'); }
+    tableViewSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn'); if (!btn) return;
+      tableViewSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      localStorage.setItem('tb_table_view', btn.dataset.view);
+      if (window.TB && TB.showToast) TB.showToast(`View: ${btn.dataset.view}`);
+    });
+  }
+
+  // Footer ticker (uses top movers)
+  initTicker();
 
   // Demo presets segmented control (home)
   const demoPresets = document.getElementById('demo-presets-buttons');

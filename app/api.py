@@ -37,6 +37,21 @@ except Exception:  # pragma: no cover - optional
 
 api_bp = Blueprint("api", __name__)
 
+# Lightweight diagnostics for auth flows
+def _auth_log(event: str, **data):
+    try:
+        # Avoid dumping very large fields; truncate some
+        if 'sig' in data and isinstance(data['sig'], str):
+            s = data['sig']
+            data['sig'] = (s[:12] + '…' + s[-8:]) if len(s) > 24 else s
+        if 'pubkey' in data and isinstance(data['pubkey'], str):
+            p = data['pubkey']
+            data['pubkey'] = (p[:12] + '…' + p[-8:]) if len(p) > 24 else p
+        current_app.logger.info("[nostr_auth] %s %s", event, json.dumps(data))
+    except Exception:
+        # Never break the request due to logging
+        pass
+
 # ---------------------- Nostr Auth ----------------------
 def _nostr_event_id(ev: dict) -> str:
     """Compute Nostr event id per NIP-01.
@@ -65,6 +80,7 @@ def nostr_challenge():
     body = request.get_json(silent=True) or {}
     pubkey = (body.get("pubkey") or "").strip()
     if not (isinstance(pubkey, str) and len(pubkey) == 64 and all(c in "0123456789abcdefABCDEF" for c in pubkey)):
+        _auth_log("challenge_invalid_pubkey", pubkey=str(pubkey))
         return jsonify({"error": "invalid pubkey"}), 400
 
     nonce = secrets.token_hex(16)  # 32 hex chars
@@ -73,6 +89,7 @@ def nostr_challenge():
     chal = AuthChallenge(pubkey=pubkey.lower(), nonce=nonce, created_at=now, expires_at=expires, used=False)
     session_db.add(chal)
     session_db.commit()
+    _auth_log("challenge_issued", pubkey=pubkey.lower(), expires_at=expires.isoformat() + "Z")
     return jsonify({"nonce": nonce, "expires_at": expires.isoformat() + "Z"})
 
 
@@ -82,20 +99,36 @@ def nostr_verify():
     """Verify a signed Nostr event for the issued challenge and create/login user.
     Body: { event: {id,pubkey,created_at,kind,tags,content,sig} }
     """
-    if schnorr_verify is None:
-        # Return 400 so the client can display a helpful message instead of a hard 500.
-        # Typically resolved by installing coincurve (see requirements.txt) or using Demo Mode locally.
-        return jsonify({"error": "server missing coincurve; install coincurve to enable nostr login"}), 400
+    # Idempotent: if already authenticated, return ok with current user.
     session_db = get_session()
+    try:
+        uid = session.get("user_id")
+        if uid:
+            user = session_db.query(User).filter(User.id == uid).one_or_none()
+            if user:
+                _auth_log("verify_idempotent_ok", user_id=user.id, npub=user.npub)
+                return jsonify({"ok": True, "user": {"npub": user.npub, "display_name": user.display_name}})
+    except Exception:
+        pass
+
     body = request.get_json(silent=True) or {}
     ev = body.get("event") or {}
     try:
-        pubkey = str(ev.get("pubkey"))
+        def _canon_hex(s: str) -> str:
+            x = (s or "").strip()
+            if x.startswith("0x") or x.startswith("0X"):
+                x = x[2:]
+            return x.lower()
+
+        pubkey = _canon_hex(str(ev.get("pubkey")))
         content = str(ev.get("content"))
-        sig = str(ev.get("sig"))
-        ev_id = str(ev.get("id"))
-        # Basic checks
-        if not (len(pubkey) == 64 and len(sig) == 128 and len(ev_id) == 64):
+        sig_raw = ev.get("sig") or ev.get("signature")
+        sig = _canon_hex(str(sig_raw))
+        ev_id_in = ev.get("id")
+        ev_id = _canon_hex(str(ev_id_in)) if isinstance(ev_id_in, str) else ""
+        # Basic checks (accept missing id; we'll compute below)
+        if not (len(pubkey) == 64 and len(sig) == 128):
+            _auth_log("verify_invalid_fields", pubkey_len=len(pubkey or ''), sig_len=len(sig or ''), has_signature_field=('signature' in ev), has_sig_field=('sig' in ev))
             return jsonify({"error": "invalid event fields"}), 400
         # Check challenge existence/validity
         chal = (
@@ -104,19 +137,34 @@ def nostr_verify():
             .one_or_none()
         )
         if not chal:
+            _auth_log("verify_challenge_not_found", pubkey=pubkey)
             return jsonify({"error": "challenge not found"}), 400
         if chal.used:
+            _auth_log("verify_challenge_used", pubkey=pubkey)
             return jsonify({"error": "challenge already used"}), 400
         if chal.expires_at < datetime.utcnow():
+            _auth_log("verify_challenge_expired", pubkey=pubkey, expires_at=chal.expires_at.isoformat() if chal.expires_at else None)
             return jsonify({"error": "challenge expired"}), 400
 
-        # Verify event id and signature (BIP-340)
-        calc_id = _nostr_event_id(ev)
-        if calc_id != ev_id:
-            return jsonify({"error": "invalid event id"}), 400
-        ok = schnorr_verify(bytes.fromhex(sig), bytes.fromhex(ev_id), bytes.fromhex(pubkey))
-        if not ok:
-            return jsonify({"error": "invalid signature"}), 400
+        # If verification is disabled (dev), bypass crypto checks but still require a valid challenge
+        if current_app.config.get("NOSTR_VERIFY_DISABLED"):
+            _auth_log("verify_bypass_enabled", pubkey=pubkey)
+        else:
+            # Ensure coincurve is available
+            if schnorr_verify is None:
+                _auth_log("verify_missing_coincurve")
+                return jsonify({"error": "server missing coincurve; install coincurve to enable nostr login"}), 400
+            # Verify event id and signature (BIP-340)
+            calc_id = _nostr_event_id(ev)
+            # If client supplied an id, ensure it matches spec; otherwise use our computed id
+            if ev_id and len(ev_id) == 64 and calc_id != ev_id:
+                _auth_log("verify_invalid_event_id", provided=ev_id, computed=calc_id)
+                return jsonify({"error": "invalid event id"}), 400
+            ev_id_use = ev_id if (ev_id and len(ev_id) == 64) else calc_id
+            ok = schnorr_verify(bytes.fromhex(sig), bytes.fromhex(ev_id_use), bytes.fromhex(pubkey))
+            if not ok:
+                _auth_log("verify_invalid_signature", pubkey=pubkey, ev_id=ev_id_use)
+                return jsonify({"error": "invalid signature"}), 400
 
         # Mark challenge used
         chal.used = True
@@ -136,8 +184,10 @@ def nostr_verify():
         session["user_id"] = user.id
         session["nostr_pubkey"] = pubkey
 
+        _auth_log("verify_ok", user_id=user.id, npub=user.npub)
         return jsonify({"ok": True, "user": {"npub": user.npub, "display_name": user.display_name}})
     except Exception as e:  # pragma: no cover
+        _auth_log("verify_exception", error=str(e))
         return jsonify({"error": f"verify_failed: {e}"}), 400
 
 
@@ -711,6 +761,32 @@ def upload_avatar():
     return jsonify({"ok": True, "avatar_url": user.avatar_url})
 
 
+@api_bp.get("/changelog")
+def changelog():
+    """Return a list of recent changes for the homepage widget.
+    Query: ?limit=int (1..10)
+    """
+    try:
+        limit = max(1, min(10, int(request.args.get("limit", 5))))
+    except Exception:
+        limit = 5
+    base = [
+        {"date": "2025-09-25", "title": "Business Pages & Demo Controls", "items": [
+            "Added Features, Pricing, Docs, Methodology, About, Contact, Roadmap, Changelog pages",
+            "Demo Settings: seed, size, volatility, series, delay, fail rate, deep-link presets",
+            "Settings/Profile fully mocked in Demo Mode",
+        ]},
+        {"date": "2025-09-20", "title": "Competitions & Sources", "items": [
+            "Competitions list + details (mock)",
+            "Data Sources list + details (mock)",
+        ]},
+        {"date": "2025-09-15", "title": "Improvements", "items": [
+            "New tokens table empty state",
+            "Search UX refined",
+        ]},
+    ]
+    return jsonify(base[:limit])
+
 def _s3_cfg():
     cfg = current_app.config
     bucket = cfg.get("S3_AVATAR_BUCKET")
@@ -1032,7 +1108,16 @@ def user_detail(npub: str):
             hex_pk = decoded
     user = session.query(User).filter(User.npub == hex_pk).one_or_none()
     if not user:
-        return jsonify({"error": "User not found"}), 404
+        # If the caller is authenticated and requesting their own key, create a minimal user row
+        try:
+            if flask_session.get("nostr_pubkey") and flask_session.get("nostr_pubkey") == hex_pk:
+                user = User(npub=hex_pk, display_name=None)
+                session.add(user)
+                session.commit()
+            else:
+                return jsonify({"error": "User not found"}), 404
+        except Exception:
+            return jsonify({"error": "User not found"}), 404
 
     # Holdings with value
     q = (
@@ -1063,6 +1148,7 @@ def user_detail(npub: str):
         h2["pct"] = pct
         out_holdings.append(h2)
 
+    holdings_count = len(out_holdings)
     return jsonify({
         "user": {
             "npub": user.npub,
@@ -1072,12 +1158,20 @@ def user_detail(npub: str):
             "bio": user.bio,
             "joined_at": user.joined_at.isoformat() if user.joined_at else None,
         },
+        # Top-level alias so existing dashboard JS can read holdings directly
+        "holdings": out_holdings,
         "portfolio": {
             "total_value_usd": float(total_value),
-            "total_tokens": len(out_holdings),
+            "total_tokens": holdings_count,
+            "holdings_count": holdings_count,
             "holdings": out_holdings,
         }
     })
+
+@api_bp.get("/users/<npub>")
+def user_detail_alias(npub: str):
+    # Backwards-compatibility alias for /api/users/<npub>
+    return user_detail(npub)
 
 
 # ---------------------- Token ----------------------
@@ -1214,6 +1308,159 @@ def competitions_list():
             "status": status,
         })
     return jsonify(out)
+
+@api_bp.post("/wallet/deposit/btc_invoice")
+def wallet_deposit_btc_invoice():
+    """Create a BTC Lightning invoice via RLN for user deposit and record a pending Deposit.
+    Body: { amount_sats?: int, amount_msat?: int, amount_btc?: float, memo?: str }
+    Returns: { ok, invoice, deposit_id }
+    """
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    body = request.get_json(silent=True) or {}
+    memo = body.get("memo")
+    msat = 0
+    try:
+        if body.get("amount_msat") is not None:
+            msat = int(body.get("amount_msat"))
+        elif body.get("amount_sats") is not None:
+            msat = int(body.get("amount_sats")) * 1000
+        elif body.get("amount_btc") is not None:
+            amt_btc = float(body.get("amount_btc"))
+            if amt_btc <= 0:
+                return jsonify({"error": "invalid_amount"}), 400
+            msat = int(round(amt_btc * 100_000_000 * 1000))
+        else:
+            return jsonify({"error": "amount_required"}), 400
+    except Exception:
+        return jsonify({"error": "invalid_amount"}), 400
+    if msat <= 0:
+        return jsonify({"error": "invalid_amount"}), 400
+    cli = RLNClient()
+    try:
+        inv = cli.lninvoice(amount_msat=msat, memo=memo)
+        # Get invoice string (compat with different RLN responses)
+        invoice = inv.get("invoice") if isinstance(inv, dict) else inv
+        if not invoice or not isinstance(invoice, str):
+            return jsonify({"error": "invoice_unavailable", "detail": inv}), 502
+    except Exception as e:
+        return jsonify({"error": f"lninvoice_failed: {e}"}), 502
+    # Ensure BTC asset exists
+    btc = s.query(Asset).filter(Asset.symbol == "BTC").one_or_none()
+    if not btc:
+        btc = Asset(symbol="BTC", name="Bitcoin", precision=8, rln_asset_id=None)
+        s.add(btc)
+        s.flush()
+    from decimal import Decimal as D
+    amount_btc = D(str(msat)) / D("100000000000")  # msat -> BTC
+    d = Deposit(user_id=uid, asset_id=btc.id, amount=amount_btc, external_ref=invoice, status="pending", created_at=datetime.utcnow())
+    s.add(d)
+    s.commit()
+    return jsonify({"ok": True, "invoice": invoice, "deposit_id": d.id})
+
+
+@api_bp.post("/wallet/deposit/rgb_invoice")
+def wallet_deposit_rgb_invoice():
+    """Create an RGB invoice for user deposit for a specific RGB asset and record pending Deposit.
+    Body: { rln_asset_id?: str, symbol?: str, amount_units: int, transport_endpoints?: [str] }
+    Returns: { ok, invoice, deposit_id }
+    """
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    body = request.get_json(silent=True) or {}
+    sym = (body.get("symbol") or "").upper().strip()
+    rln_id = (body.get("rln_asset_id") or "").strip()
+    try:
+        amount_units = int(body.get("amount_units"))
+    except Exception:
+        return jsonify({"error": "invalid_amount_units"}), 400
+    if amount_units <= 0:
+        return jsonify({"error": "invalid_amount_units"}), 400
+    # Resolve/create RGB asset
+    rgb = None
+    if sym:
+        rgb = s.query(Asset).filter(Asset.symbol == sym).one_or_none()
+    if not rgb and rln_id:
+        rgb = s.query(Asset).filter(Asset.rln_asset_id == rln_id).one_or_none()
+        if not rgb:
+            # Fallback create minimal asset record
+            rgb = Asset(symbol=(sym or "RGB"), name=(sym or "RGB Asset"), precision=0, rln_asset_id=rln_id, created_by_user_id=uid)
+            s.add(rgb)
+            s.flush()
+    if not rgb or not rgb.rln_asset_id:
+        return jsonify({"error": "asset_not_found_or_missing_rln_id"}), 400
+    endpoints = body.get("transport_endpoints")
+    cli = RLNClient()
+    try:
+        inv = cli.rgbinvoice(asset_id=rgb.rln_asset_id, amount=amount_units, transport_endpoints=endpoints)
+        invoice = inv.get("invoice") if isinstance(inv, dict) else inv
+        if not invoice or not isinstance(invoice, str):
+            return jsonify({"error": "invoice_unavailable", "detail": inv}), 502
+    except Exception as e:
+        return jsonify({"error": f"rgbinvoice_failed: {e}"}), 502
+    # Convert amount units to decimal using precision
+    from decimal import Decimal as D
+    p = int(rgb.precision or 0)
+    amount_dec = D(str(amount_units)) / (D("10") ** p)
+    d = Deposit(user_id=uid, asset_id=rgb.id, amount=amount_dec, external_ref=invoice, status="pending", created_at=datetime.utcnow())
+    s.add(d)
+    s.commit()
+    return jsonify({"ok": True, "invoice": invoice, "deposit_id": d.id})
+
+
+@api_bp.post("/wallet/withdraw/request")
+def wallet_withdraw_request():
+    """User-initiated withdrawal request.
+    Body: { asset_id?: int, symbol?: str, amount: number, invoice?: str }
+    Debits user available/balance and creates a pending Withdrawal. Admin/process will later mark sent.
+    """
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    body = request.get_json(silent=True) or {}
+    sym = (body.get("symbol") or "").upper().strip()
+    asset_id = body.get("asset_id")
+    try:
+        amount = Decimal(str(body.get("amount")))
+    except Exception:
+        return jsonify({"error": "invalid_amount"}), 400
+    if amount <= 0:
+        return jsonify({"error": "invalid_amount"}), 400
+    invoice = (body.get("invoice") or "").strip()
+    if not invoice:
+        return jsonify({"error": "invoice_required"}), 400
+    # Resolve asset
+    asset = None
+    if asset_id:
+        try:
+            asset = s.query(Asset).filter(Asset.id == int(asset_id)).one_or_none()
+        except Exception:
+            asset = None
+    if not asset and sym:
+        asset = s.query(Asset).filter(Asset.symbol == sym).one_or_none()
+    if not asset:
+        return jsonify({"error": "asset_not_found"}), 404
+    # Ensure sufficient available
+    ub = s.query(UserBalance).filter(UserBalance.user_id == uid, UserBalance.asset_id == asset.id).one_or_none()
+    if not ub or (ub.available or Decimal("0")) < amount:
+        return jsonify({"error": "insufficient_available"}), 400
+    # Debit immediately and record withdrawal + ledger
+    ub.available = (ub.available or Decimal("0")) - amount
+    ub.balance = (ub.balance or Decimal("0")) - amount
+    ub.updated_at = datetime.utcnow()
+    s.add(ub)
+    w = Withdrawal(user_id=uid, asset_id=asset.id, amount=amount, external_ref=invoice, status="pending", created_at=datetime.utcnow())
+    s.add(w)
+    s.flush()
+    le = LedgerEntry(user_id=uid, asset_id=asset.id, delta=(Decimal("0") - amount), ref_type="withdraw", ref_id=w.id, created_at=datetime.utcnow())
+    s.add(le)
+    s.commit()
+    return jsonify({"ok": True, "withdrawal_id": w.id})
 
 
 @api_bp.post("/admin/deposits/create")
@@ -1950,6 +2197,221 @@ def launchpad_issue_and_pool():
     s.commit()
     return jsonify({"ok": True, "asset": {"id": rgb.id, "symbol": rgb.symbol, "rln_asset_id": rgb.rln_asset_id}, "pool_id": pool.id, "virtual": {"btc": reserve_btc_virtual, "rgb": reserve_rgb_virtual}})
 
+
+# List existing RGB assets and whether a BTC-RGB pool exists (public)
+@api_bp.get("/launchpad/assets")
+def launchpad_assets():
+    s = get_session()
+    # Ensure BTC asset id (if missing, none of the pools will match anyway)
+    btc = s.query(Asset).filter(Asset.symbol == "BTC").one_or_none()
+    btc_id = btc.id if btc else None
+    rows = (
+        s.query(Asset)
+        .filter((Asset.rln_asset_id != None))  # noqa: E711
+        .order_by(Asset.symbol.asc())
+        .all()
+    )
+    out = []
+    for a in rows:
+        if (a.symbol or "").upper() == "BTC":
+            continue
+        # Check pool existence vs BTC
+        pool = None
+        if btc_id is not None:
+            pool = s.query(Pool).filter(Pool.asset_rgb_id == a.id, Pool.asset_btc_id == btc_id).one_or_none()
+        out.append({
+            "id": a.id,
+            "symbol": a.symbol,
+            "name": a.name,
+            "precision": a.precision,
+            "rln_asset_id": a.rln_asset_id,
+            "pool_exists": bool(pool),
+            "pool_id": (pool.id if pool else None),
+        })
+    return jsonify(out)
+
+
+# Create a vAMM pool for an existing RGB asset (requires auth)
+@api_bp.post("/launchpad/create_pool")
+def launchpad_create_pool():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    body = request.get_json(silent=True) or {}
+    symbol = (body.get("symbol") or "").upper().strip()
+    rln_asset_id = (body.get("rln_asset_id") or "").strip()
+    initial_price = float(body.get("initial_price") or 0)
+    virtual_depth_btc = float(body.get("virtual_depth_btc") or 0)
+    fee_bps = int(body.get("fee_bps") or 100)
+    lp_fee_bps = int(body.get("lp_fee_bps") or 50)
+    platform_fee_bps = int(body.get("platform_fee_bps") or 50)
+    if initial_price <= 0 or virtual_depth_btc <= 0:
+        return jsonify({"error": "invalid_params"}), 400
+
+    btc = s.query(Asset).filter(Asset.symbol == "BTC").one_or_none()
+    if not btc:
+        btc = Asset(symbol="BTC", name="Bitcoin", precision=8, rln_asset_id=None)
+        s.add(btc)
+        s.flush()
+
+    # Resolve or create RGB asset record
+    rgb = None
+    if symbol:
+        rgb = s.query(Asset).filter(Asset.symbol == symbol).one_or_none()
+    if (not rgb) and rln_asset_id:
+        rgb = s.query(Asset).filter(Asset.rln_asset_id == rln_asset_id).one_or_none()
+        if not rgb:
+            # Try to upsert from RLN listassets
+            try:
+                cli = RLNClient()
+                data = cli.listassets() or []
+                match = None
+                for it in (data if isinstance(data, list) else data.get("assets", [])):
+                    aid = it.get("asset_id") or it.get("asset")
+                    if str(aid or "").strip() == rln_asset_id:
+                        match = it
+                        break
+                if not match and not symbol:
+                    return jsonify({"error": "asset_not_found"}), 404
+                if not symbol:
+                    # Prefer RLN ticker if available
+                    symbol = str(match.get("ticker") or "RGB").upper()[:20]
+                name = str((body.get("name") or match.get("name") or symbol)).strip()
+                precision = int(body.get("precision") or match.get("precision") or 0)
+                rgb = Asset(symbol=symbol, name=name, precision=precision, rln_asset_id=rln_asset_id, created_by_user_id=uid)
+                s.add(rgb)
+                s.flush()
+            except Exception:
+                return jsonify({"error": "rln_lookup_failed_or_asset_unknown"}), 400
+
+    if not rgb:
+        return jsonify({"error": "asset_not_found"}), 404
+
+    # Prevent duplicate pool
+    exists = s.query(Pool).filter(Pool.asset_rgb_id == rgb.id, Pool.asset_btc_id == btc.id).one_or_none()
+    if exists:
+        return jsonify({"error": "pool_exists", "pool_id": exists.id}), 400
+
+    # Create pool and virtual reserves
+    pool = Pool(
+        asset_rgb_id=rgb.id,
+        asset_btc_id=btc.id,
+        fee_bps=fee_bps,
+        lp_fee_bps=lp_fee_bps,
+        platform_fee_bps=platform_fee_bps,
+        is_vamm=True,
+        is_active=True,
+    )
+    s.add(pool)
+    s.flush()
+    reserve_btc_virtual = virtual_depth_btc
+    reserve_rgb_virtual = virtual_depth_btc / initial_price
+    pl = PoolLiquidity(
+        pool_id=pool.id,
+        reserve_rgb=0,
+        reserve_btc=0,
+        reserve_rgb_virtual=reserve_rgb_virtual,
+        reserve_btc_virtual=reserve_btc_virtual,
+    )
+    s.add(pl)
+    s.commit()
+    return jsonify({
+        "ok": True,
+        "asset": {"id": rgb.id, "symbol": rgb.symbol, "rln_asset_id": rgb.rln_asset_id},
+        "pool_id": pool.id,
+        "virtual": {"btc": reserve_btc_virtual, "rgb": reserve_rgb_virtual},
+        "fees": {"fee_bps": fee_bps, "lp_fee_bps": lp_fee_bps, "platform_fee_bps": platform_fee_bps},
+    })
+
+# ---------------------- Wallet (per-user) ----------------------
+@api_bp.get("/wallet/assets")
+def wallet_assets():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    # Load all assets and user's balances
+    rows = s.query(Asset).order_by(Asset.symbol.asc()).all()
+    # Map user balances by asset_id
+    bals = s.query(UserBalance).filter(UserBalance.user_id == uid).all()
+    bal_map = {b.asset_id: b for b in bals}
+    out = []
+    for a in rows:
+        ub = bal_map.get(a.id)
+        out.append({
+            "asset_id": a.id,
+            "symbol": a.symbol,
+            "name": a.name,
+            "precision": int(a.precision or 0),
+            "rln_asset_id": a.rln_asset_id,
+            "balance": float(ub.balance or 0) if ub else 0.0,
+            "available": float(ub.available or 0) if ub else 0.0,
+        })
+    return jsonify(out)
+
+
+@api_bp.get("/wallet/deposits")
+def wallet_deposits():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    try:
+        limit = max(1, min(200, int(request.args.get("limit", 50))))
+    except Exception:
+        limit = 50
+    rows = s.query(Deposit).filter(Deposit.user_id == uid).order_by(Deposit.id.desc()).limit(limit).all()
+    # asset symbols
+    asset_ids = list({d.asset_id for d in rows})
+    sym = {}
+    if asset_ids:
+        for a in s.query(Asset).filter(Asset.id.in_(asset_ids)).all():
+            sym[a.id] = a.symbol
+    out = []
+    for d in rows:
+        out.append({
+            "id": d.id,
+            "asset_id": d.asset_id,
+            "asset_symbol": sym.get(d.asset_id),
+            "amount": float(d.amount or 0),
+            "status": d.status,
+            "external_ref": d.external_ref,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "settled_at": d.settled_at.isoformat() if d.settled_at else None,
+        })
+    return jsonify(out)
+
+
+@api_bp.get("/wallet/withdrawals")
+def wallet_withdrawals():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    try:
+        limit = max(1, min(200, int(request.args.get("limit", 50))))
+    except Exception:
+        limit = 50
+    rows = s.query(Withdrawal).filter(Withdrawal.user_id == uid).order_by(Withdrawal.id.desc()).limit(limit).all()
+    asset_ids = list({w.asset_id for w in rows})
+    sym = {}
+    if asset_ids:
+        for a in s.query(Asset).filter(Asset.id.in_(asset_ids)).all():
+            sym[a.id] = a.symbol
+    out = []
+    for w in rows:
+        out.append({
+            "id": w.id,
+            "asset_id": w.asset_id,
+            "asset_symbol": sym.get(w.asset_id),
+            "amount": float(w.amount or 0),
+            "status": w.status,
+            "external_ref": w.external_ref,
+            "created_at": w.created_at.isoformat() if w.created_at else None,
+            "settled_at": w.settled_at.isoformat() if w.settled_at else None,
+        })
+    return jsonify(out)
 
 # ---------------------- Admin Endpoints ----------------------
 def _is_admin(s, user_id: int) -> bool:

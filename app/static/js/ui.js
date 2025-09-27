@@ -414,6 +414,100 @@
       return mockJson(ds);
     }
 
+    // Launchpad: assets list
+    if (p === '/api/launchpad/assets'){
+      // Build a small deterministic set of RGB assets derived from mock tokens
+      const rows = (TB.__mock.tokens || []).slice(0, 10).map((t, i) => ({
+        id: i+1,
+        symbol: (t.symbol || ('RGB'+(i+1))).toUpperCase(),
+        name: t.name || ('RGB Asset ' + (i+1)),
+        precision: randint(0, 6),
+        rln_asset_id: 'rgb1' + String(i).padStart(6, '0') + 'x'.repeat(10),
+        pool_exists: i % 3 === 0,
+        pool_id: i % 3 === 0 ? (100 + i) : null,
+      }));
+      return mockJson(rows);
+    }
+
+    // Launchpad: mint-and-pool
+    if (p === '/api/launchpad/issue_nia_and_pool' && init && (init.method||'').toUpperCase() === 'POST'){
+      try { const body = typeof init.body === 'string' ? JSON.parse(init.body) : {}; console.log('Mock issue NIA', body); } catch {}
+      const pool_id = randint(200, 999);
+      return mockJson({
+        ok: true,
+        asset: { id: randint(1000, 9999), symbol: 'MOCK', rln_asset_id: 'rgb1mock' },
+        pool_id,
+        virtual: { btc: 0.25, rgb: 0.25 / 0.00001 },
+      });
+    }
+
+    // Launchpad: create pool
+    if (p === '/api/launchpad/create_pool' && init && (init.method||'').toUpperCase() === 'POST'){
+      try { const body = typeof init.body === 'string' ? JSON.parse(init.body) : {}; console.log('Mock create pool', body); } catch {}
+      const pool_id = randint(1000, 9999);
+      return mockJson({
+        ok: true,
+        asset: { id: randint(1, 999), symbol: 'EXIST', rln_asset_id: 'rgb1exist' },
+        pool_id,
+        virtual: { btc: 0.25, rgb: 25000 },
+        fees: { fee_bps: 100, lp_fee_bps: 50, platform_fee_bps: 50 },
+      });
+    }
+
+    // Wallet: BTC balance (RLN)
+    if (p === '/api/rln/btcbalance' && init && (init.method||'').toUpperCase() === 'POST'){
+      return mockJson({
+        onchain: { confirmed_sat: 12345678, total_sat: 15000000 },
+        ln: { local_msat: 250000000, remote_msat: 50000000 },
+      });
+    }
+
+    // Wallet: assets
+    if (p === '/api/wallet/assets'){
+      const rows = [
+        { asset_id: 1, symbol: 'BTC', name: 'Bitcoin', precision: 8, rln_asset_id: null, balance: 0.12345678, available: 0.12000000 },
+        { asset_id: 2, symbol: 'ARENA', name: 'Token Arena', precision: 0, rln_asset_id: 'rgb1arena', balance: 5000, available: 4800 },
+        { asset_id: 3, symbol: 'RGBX', name: 'RGB X', precision: 2, rln_asset_id: 'rgb1x', balance: 12345.67, available: 12000.00 },
+        { asset_id: 4, symbol: 'GAME', name: 'Game Coin', precision: 0, rln_asset_id: 'rgb1game', balance: 42, available: 40 },
+      ];
+      return mockJson(rows);
+    }
+
+    // Wallet: deposits
+    if (p === '/api/wallet/deposits'){
+      const now = Date.now();
+      const rows = [
+        { id: 1, asset_id: 1, asset_symbol: 'BTC', amount: 0.01, status: 'settled', external_ref: 'lnbc1...', created_at: new Date(now-86400000).toISOString(), settled_at: new Date(now-86300000).toISOString() },
+        { id: 2, asset_id: 2, asset_symbol: 'ARENA', amount: 1000, status: 'pending', external_ref: 'rgb1inv...', created_at: new Date(now-3600000).toISOString(), settled_at: null },
+      ];
+      return mockJson(rows);
+    }
+
+    // Wallet: withdrawals
+    if (p === '/api/wallet/withdrawals'){
+      const now = Date.now();
+      const rows = [
+        { id: 3, asset_id: 1, asset_symbol: 'BTC', amount: 0.005, status: 'sent', external_ref: 'bc1q...', created_at: new Date(now-7200000).toISOString(), settled_at: new Date(now-7100000).toISOString() },
+        { id: 4, asset_id: 3, asset_symbol: 'RGBX', amount: 250.25, status: 'pending', external_ref: 'rgb1inv...', created_at: new Date(now-1800000).toISOString(), settled_at: null },
+      ];
+      return mockJson(rows);
+    }
+
+    // Wallet: create BTC deposit invoice
+    if (p === '/api/wallet/deposit/btc_invoice' && init && (init.method||'').toUpperCase() === 'POST'){
+      return mockJson({ ok: true, invoice: 'lnbc1mockinvoicexyz...', deposit_id: randint(1000,9999) });
+    }
+
+    // Wallet: create RGB deposit invoice
+    if (p === '/api/wallet/deposit/rgb_invoice' && init && (init.method||'').toUpperCase() === 'POST'){
+      return mockJson({ ok: true, invoice: 'rgb1mockinvoiceabc...', deposit_id: randint(1000,9999) });
+    }
+
+    // Wallet: withdrawal request
+    if (p === '/api/wallet/withdraw/request' && init && (init.method||'').toUpperCase() === 'POST'){
+      return mockJson({ ok: true, withdrawal_id: randint(1000,9999) });
+    }
+
     if (p.startsWith('/api/user/')){
       const npub = decodeURIComponent(p.split('/').pop()||'');
       const urec = TB.__mock.users[0];
