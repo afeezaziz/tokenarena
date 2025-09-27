@@ -20,6 +20,8 @@
       <div class="pill"><span class="dot"></span> Live Demo</div>
       <h1>Token Arena<br><span class="gradient-text">Battle-tested Market Intel</span></h1>
       <p class="subtitle">Real-time leaderboards, holder analytics, RGB asset launchpad, and lightning-fast trading insights across the Bitcoin ecosystem.</p>
+      <div id="tagline-rotator" class="tagline">Loading magic…</div>
+      <div class="fun-controls"><button id="party-toggle" class="btn small" title="Toggle party mode">🎈 Party Mode</button></div>
       <div class="cta-row">
         <a href="/dashboard" class="btn btn-cta dashboard-btn"><span class="label">Open Dashboard</span> <span class="arrow" aria-hidden="true">→</span></a>
         <a href="/launchpad" class="btn btn-secondary">Launch RGB Asset</a>
@@ -38,13 +40,38 @@
     <div id="home-ticker" class="home-ticker-track"></div>
   </section>
 
+<!-- Daily Quest -->
+<section class="daily-quest" aria-labelledby="dq-title">
+  <div class="section-header with-actions">
+    <h2 id="dq-title">Daily Quest</h2>
+    <p class="section-subtitle">Complete fun tasks and earn bragging rights</p>
+    <div id="streak-pill" class="streak-pill">🔥 0-day streak</div>
+  </div>
+  <div id="daily-quest" class="dq-grid"></div>
+</section>
+
   <!-- Weekly Battle -->
   <section class="weekly-battle" aria-labelledby="wb-title">
-    <div class="section-header">
-      <h2 id="wb-title">Weekly Battle</h2>
-      <p class="section-subtitle">Head-to-head faceoffs of the biggest tokens this week</p>
+    <div class="section-header with-actions">
+      <div>
+        <h2 id="wb-title">Weekly Battle</h2>
+        <p class="section-subtitle">Head-to-head faceoffs of the biggest tokens this week</p>
+      </div>
+      <button class="btn loot" id="loot-drop" title="Spawn confetti!">🎉 Loot Drop</button>
     </div>
     <div id="weekly-battle"></div>
+  </section>
+
+  <!-- Lucky Spin -->
+  <section class="spin-section" aria-labelledby="spin-title">
+    <div class="section-header with-actions">
+      <div>
+        <h2 id="spin-title">Lucky Spin</h2>
+        <p class="section-subtitle">Feeling lucky? Spin to spotlight a random token</p>
+      </div>
+      <button id="spin-btn" class="btn">🎰 Spin</button>
+    </div>
+    <div id="spin-result" class="spin-result muted">Press Spin to pick a token…</div>
   </section>
 
   <!-- Featured Products -->
@@ -320,6 +347,12 @@
   .cta-buttons { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
   .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
   .btn-outline:hover { background: rgba(124,92,255,0.1); }
+  .fun-controls { margin-top: 6px; }
+
+  /* Tagline rotator */
+  .tagline { margin-top: 8px; color: var(--text-secondary); min-height: 20px; }
+  .tagline.fade { animation: fadeIn 0.35s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
   
   /* Home ticker */
   .home-ticker { margin: 10px 0 18px; border-top:1px solid var(--border); border-bottom:1px solid var(--border); overflow:hidden; }
@@ -332,6 +365,9 @@
 
   /* Weekly Battle */
   .weekly-battle { margin: 18px 0 24px; }
+  .section-header.with-actions { display:flex; align-items:center; justify-content:space-between; gap: 12px; }
+  .btn.loot { background: rgba(255, 214, 102, 0.15); border: 1px solid rgba(255, 214, 102, 0.4); color: #ffd166; }
+  .btn.loot:hover { background: rgba(255, 214, 102, 0.25); }
   .wb-grid { display:grid; grid-template-columns: 1fr; gap: 12px; }
   .wb-match { display:grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; }
   .wb-vs { display:flex; align-items:center; justify-content:center; font-weight:800; color: var(--text-secondary); padding: 8px; }
@@ -343,6 +379,23 @@
   .wb-meta { color: var(--text-secondary); font-size: 0.85rem; }
   .wb-meta .up { color:#00d1b2; }
   .wb-meta .down { color:#ff5c7c; }
+  .wb-ctrl { margin-top: 6px; }
+  .wb-bars { display:grid; gap:6px; }
+  .wb-bar { position: relative; background: rgba(255,255,255,0.05); border:1px solid var(--border); border-radius: 999px; height: 10px; overflow: hidden; }
+  .wb-bar .fill { position:absolute; top:0; left:0; height:100%; background: linear-gradient(90deg, #7c5cff, #00d1b2); width: 0; transition: width 0.35s ease; }
+  .wb-bar .pct { position:absolute; right: 6px; top:-18px; font-size: 0.75rem; color: var(--text-secondary); }
+  .wb-actions { margin-top: 6px; display:flex; gap:8px; }
+  .wb-actions .btn.small.active { outline: 2px solid var(--accent); }
+
+  /* Spin */
+  .spin-section { margin: 18px 0 24px; }
+  .spin-result { margin-top: 10px; background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .spin-card { display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; }
+  .spin-sym { font-weight: 800; color: var(--text); }
+  .spin-name { color: var(--text-secondary); }
+  .spin-meta { font-size: 0.9rem; color: var(--text-secondary); }
+  .spin-pct.up { color: #00d1b2; }
+  .spin-pct.down { color: #ff5c7c; }
 
   /* Spotlights */
   .spotlights { margin: 24px 0; }
@@ -354,5 +407,20 @@
   .spot-title { font-weight: 700; color: var(--text); }
   .spot-meta { font-size: 0.8rem; color: var(--text-secondary); margin-top: 6px; }
   @media (max-width: 820px){ .spotlights-grid { grid-template-columns: 1fr; } }
+
+  /* Daily Quest */
+  .daily-quest { margin: 24px 0; }
+  .dq-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .dq-card { background: var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .dq-card .title { font-weight: 700; color: var(--text); display:flex; align-items:center; gap:8px; }
+  .dq-card .desc { color: var(--text-secondary); font-size: 0.9rem; }
+  .dq-card .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .dq-card.done { border-color: #00d1b2; box-shadow: 0 0 0 1px rgba(0,209,178,0.3) inset; }
+  .streak-pill { margin-left: auto; background: rgba(255,255,255,0.06); border:1px solid var(--border); border-radius: 999px; padding: 6px 10px; font-weight: 700; color: var(--text); }
+
+  /* Party mode */
+  body.party .hero::before { animation: partyGlow 6s ease-in-out infinite; }
+  @keyframes partyGlow { 0%,100%{ filter: hue-rotate(0deg) brightness(1);} 50%{ filter: hue-rotate(60deg) brightness(1.15);} }
+  body.party .product-card.featured { box-shadow: 0 0 0 2px rgba(124,92,255,0.25), 0 0 20px rgba(124,92,255,0.25); }
 </style>
 {% endblock %}

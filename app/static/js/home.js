@@ -9,6 +9,149 @@
     return m;
   }
 
+  // Lucky Spin
+  function initLuckySpin(){
+    const btn = document.getElementById('spin-btn'); const out = document.getElementById('spin-result');
+    if (!btn || !out) return;
+    btn.addEventListener('click', async ()=>{
+      out.classList.remove('spin-animate'); out.textContent = 'Spinning…';
+      try{
+        const r = await fetch('/api/tokens?page=1&page_size=100&sort=market_cap_usd&dir=desc&sparkline=1&days=7');
+        const data = await r.json(); const items = (data && data.items) || [];
+        if (!items.length){ out.textContent='No tokens found.'; return; }
+        const pick = items[Math.floor(Math.random()*items.length)];
+        const pct = Number(pick.change_24h||0); const up = pct >= 0;
+        out.innerHTML = `
+          <div class="spin-card">
+            <div>
+              <div class="spin-sym">${pick.symbol}</div>
+              <div class="spin-name">${pick.name||''}</div>
+            </div>
+            <div class="spin-meta">
+              <span class="spin-pct ${up?'up':'down'}">${(up?'+':'')+pct.toFixed(2)}%</span>
+              <a href="/t/${encodeURIComponent(pick.symbol)}" class="btn small" style="margin-left:8px">View</a>
+            </div>
+          </div>
+        `;
+      } catch {
+        out.textContent = 'Spin failed. Try again.';
+      }
+    });
+  }
+
+  // Party Mode
+  function initPartyToggle(){
+    const btn = document.getElementById('party-toggle'); if (!btn) return;
+    function apply(){
+      if ((localStorage.getItem('tb_party')||'0') === '1') document.body.classList.add('party'); else document.body.classList.remove('party');
+    }
+    apply();
+    btn.addEventListener('click', ()=>{
+      const cur = (localStorage.getItem('tb_party')||'0') === '1';
+      localStorage.setItem('tb_party', cur ? '0' : '1');
+      apply();
+      if (window.TB && TB.showToast) TB.showToast(cur ? 'Party off' : 'Party on!');
+    });
+  }
+
+  // Tagline rotator (playful)
+  function initTaglineRotator(){
+    const el = document.getElementById('tagline-rotator');
+    if (!el) return;
+    const lines = [
+      'Battle your watchlist ⚔️',
+      'Numbers that go up (or down) 📈',
+      'Sharpe it till you make it 🧮',
+      'Sparkline snapshot — blink and you’ll miss it ✨',
+      'RGB vibes on Bitcoin ⚡',
+    ];
+    let i = Math.floor(Math.random()*lines.length);
+    const setLine = () => { el.textContent = lines[i]; el.classList.remove('fade'); void el.offsetWidth; el.classList.add('fade'); };
+    setLine();
+    setInterval(()=>{ i = (i+1) % lines.length; setLine(); }, 3000);
+  }
+
+  // Loot drop confetti (emoji)
+  function bindLootDrop(){
+    const btn = document.getElementById('loot-drop');
+    if (!btn) return;
+    btn.addEventListener('click', ()=>{
+      const rect = btn.getBoundingClientRect();
+      const centerX = rect.left + rect.width/2; const centerY = rect.top + rect.height/2;
+      const emojis = ['🎉','✨','🪙','💎','🎊','⚡'];
+      const N = 36;
+      for (let k=0;k<N;k++){
+        const span = document.createElement('span');
+        span.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+        span.style.position = 'fixed'; span.style.left = centerX+'px'; span.style.top = centerY+'px';
+        span.style.transform = 'translate(-50%, -50%) scale(1)';
+        span.style.transition = 'transform 1.2s cubic-bezier(.17,.67,.32,1.2), opacity 1.2s linear';
+        span.style.zIndex = '9999'; span.style.fontSize = (18 + Math.random()*10)+'px';
+        document.body.appendChild(span);
+        const angle = Math.random()*Math.PI*2; const dist = 60 + Math.random()*180;
+        requestAnimationFrame(()=>{
+          const dx = Math.cos(angle)*dist; const dy = Math.sin(angle)*dist;
+          span.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${0.7 + Math.random()*0.6})`;
+          span.style.opacity = '0';
+          setTimeout(()=>{ span.remove(); }, 1300);
+        });
+      }
+      if (window.TB && TB.showToast) TB.showToast('Loot dropped!');
+    });
+  }
+
+  // Daily Quest (playful mini tasks)
+  function loadDailyQuest(){
+    const wrap = document.getElementById('daily-quest');
+    if (!wrap) return;
+    const todayKey = new Date().toISOString().slice(0,10);
+    const STORE = `tb_daily_quests_${todayKey}`;
+    function getState(){ try{ return JSON.parse(localStorage.getItem(STORE)||'{}'); }catch{ return {}; } }
+    function setState(v){ try{ localStorage.setItem(STORE, JSON.stringify(v)); }catch{} }
+    function updateStreakUI(){
+      const pill = document.getElementById('streak-pill'); if (!pill) return;
+      const cnt = parseInt(localStorage.getItem('tb_streak_count')||'0',10) || 0;
+      pill.textContent = `🔥 ${cnt}-day streak`;
+    }
+    function markStreakIfFirstToday(){
+      const last = localStorage.getItem('tb_streak_last') || '';
+      const cnt = parseInt(localStorage.getItem('tb_streak_count')||'0',10) || 0;
+      if (last === todayKey) { updateStreakUI(); return; }
+      // compute yesterday
+      const d = new Date(todayKey + 'T00:00:00Z'); const y = new Date(d.getTime() - 24*3600*1000);
+      const yKey = y.toISOString().slice(0,10);
+      const nextCnt = (last === yKey) ? (cnt + 1) : 1;
+      localStorage.setItem('tb_streak_last', todayKey);
+      localStorage.setItem('tb_streak_count', String(nextCnt));
+      updateStreakUI();
+    }
+    const quests = [
+      { id: 'vote', icon:'⚔️', title: 'Pick a champion', desc: 'Vote in Weekly Battle', act: ()=>{ const el = document.getElementById('weekly-battle'); if (el) el.scrollIntoView({behavior:'smooth'}); } },
+      { id: 'movers', icon:'🚀', title: 'Flip the metric', desc: 'Change Top Movers metric', act: ()=>{ const seg = document.getElementById('movers-metric'); if (seg){ const btn = seg.querySelector('.btn:not(.active)'); btn && btn.click(); } } },
+      { id: 'demo', icon:'🧪', title: 'Play in Demo', desc: 'Enable Demo Mode', act: ()=>{ if (window.TB && TB.enableMock){ TB.enableMock(true); } } },
+    ];
+    const state = getState();
+    wrap.innerHTML = '';
+    quests.forEach(q => {
+      const card = document.createElement('div'); card.className = 'dq-card' + (state[q.id] ? ' done' : '');
+      card.innerHTML = `
+        <div class="title">${q.icon} ${q.title}</div>
+        <div class="desc">${q.desc}</div>
+        <div class="actions">
+          <button class="btn small do">Do</button>
+          <button class="btn small mark">Mark Done</button>
+          <button class="btn small reset">Reset</button>
+        </div>
+      `;
+      const doBtn = card.querySelector('.do'); const markBtn = card.querySelector('.mark'); const resetBtn = card.querySelector('.reset');
+      doBtn.addEventListener('click', ()=>{ try{ q.act(); }catch{} });
+      markBtn.addEventListener('click', ()=>{ const s=getState(); if (!s[q.id]) { s[q.id]=true; setState(s); card.classList.add('done'); markStreakIfFirstToday(); if (window.TB&&TB.showToast) TB.showToast('Quest complete!'); } });
+      resetBtn.addEventListener('click', ()=>{ const s=getState(); delete s[q.id]; setState(s); card.classList.remove('done'); });
+      wrap.appendChild(card);
+    });
+    updateStreakUI();
+  }
+
   // Top marquee ticker (home)
   async function loadHomeTicker(){
     const wrap = document.getElementById('home-ticker');
@@ -240,6 +383,11 @@
     await loadHomeTicker();
     await loadWeeklyBattle();
     await loadSpotlights();
+    initTaglineRotator();
+    bindLootDrop();
+    loadDailyQuest();
+    initLuckySpin();
+    initPartyToggle();
     wireMoversSegmented();
     await loadTopMoversWithSpark();
   });
