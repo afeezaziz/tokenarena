@@ -17,9 +17,18 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     schnorr_verify = None
 
-from .models import GlobalMetrics, Token, TokenSnapshot, User, UserHolding, Competition, CompetitionEntry, AuthChallenge, get_session
+from .models import (
+    GlobalMetrics,
+    Token, TokenSnapshot,
+    User, UserHolding,
+    Competition, CompetitionEntry,
+    AuthChallenge,
+    Asset, UserBalance, Pool, PoolLiquidity, Swap, Approval, LedgerEntry, Deposit, Withdrawal,
+    get_session,
+)
 from .utils.nostr import hex_to_npub, npub_to_hex
 from .limiter import limiter
+from .integrations.rln import RLNClient
 
 try:
     import boto3  # type: ignore
@@ -1205,6 +1214,128 @@ def competitions_list():
     return jsonify(out)
 
 
+@api_bp.post("/admin/deposits/create")
+def admin_deposit_create():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        user_id = int(body.get("user_id"))
+        asset_id = int(body.get("asset_id"))
+        amount = Decimal(str(body.get("amount")))
+    except Exception:
+        return jsonify({"error": "invalid_body"}), 400
+    if amount <= 0:
+        return jsonify({"error": "amount_must_be_positive"}), 400
+    ext = body.get("external_ref")
+    d = Deposit(user_id=user_id, asset_id=asset_id, amount=amount, external_ref=ext, status="pending", created_at=datetime.utcnow())
+    s.add(d)
+    s.commit()
+    return jsonify({"ok": True, "deposit_id": d.id})
+
+
+@api_bp.post("/admin/deposits/settle")
+def admin_deposit_settle():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        dep_id = int(body.get("id"))
+    except Exception:
+        return jsonify({"error": "invalid_body"}), 400
+    d = s.query(Deposit).filter(Deposit.id == dep_id).one_or_none()
+    if not d:
+        return jsonify({"error": "not_found"}), 404
+    if d.status == "settled":
+        return jsonify({"ok": True, "already": True})
+    # credit user balance and ledger
+    ub = s.query(UserBalance).filter(UserBalance.user_id == d.user_id, UserBalance.asset_id == d.asset_id).one_or_none()
+    if not ub:
+        ub = UserBalance(user_id=d.user_id, asset_id=d.asset_id, balance=Decimal("0"), available=Decimal("0"), updated_at=datetime.utcnow())
+        s.add(ub)
+        s.flush()
+    ub.balance = (ub.balance or Decimal("0")) + (d.amount or Decimal("0"))
+    ub.available = (ub.available or Decimal("0")) + (d.amount or Decimal("0"))
+    ub.updated_at = datetime.utcnow()
+    s.add(ub)
+    le = LedgerEntry(user_id=d.user_id, asset_id=d.asset_id, delta=d.amount, ref_type="deposit", ref_id=d.id, created_at=datetime.utcnow())
+    s.add(le)
+    d.status = "settled"
+    d.settled_at = datetime.utcnow()
+    s.add(d)
+    s.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.post("/admin/withdrawals/create")
+def admin_withdrawal_create():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        user_id = int(body.get("user_id"))
+        asset_id = int(body.get("asset_id"))
+        amount = Decimal(str(body.get("amount")))
+    except Exception:
+        return jsonify({"error": "invalid_body"}), 400
+    if amount <= 0:
+        return jsonify({"error": "amount_must_be_positive"}), 400
+    ext = body.get("external_ref")
+    # ensure balance
+    ub = s.query(UserBalance).filter(UserBalance.user_id == user_id, UserBalance.asset_id == asset_id).one_or_none()
+    if not ub or (ub.available or Decimal("0")) < amount:
+        return jsonify({"error": "insufficient_available"}), 400
+    # debit immediately (simple flow)
+    ub.available = (ub.available or Decimal("0")) - amount
+    ub.balance = (ub.balance or Decimal("0")) - amount
+    ub.updated_at = datetime.utcnow()
+    s.add(ub)
+    w = Withdrawal(user_id=user_id, asset_id=asset_id, amount=amount, external_ref=ext, status="pending", created_at=datetime.utcnow())
+    s.add(w)
+    s.flush()
+    le = LedgerEntry(user_id=user_id, asset_id=asset_id, delta=(Decimal("0") - amount), ref_type="withdraw", ref_id=w.id, created_at=datetime.utcnow())
+    s.add(le)
+    s.commit()
+    return jsonify({"ok": True, "withdrawal_id": w.id})
+
+
+@api_bp.post("/admin/withdrawals/mark_sent")
+def admin_withdrawal_mark_sent():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    body = request.get_json(silent=True) or {}
+    try:
+        wid = int(body.get("id"))
+    except Exception:
+        return jsonify({"error": "invalid_body"}), 400
+    w = s.query(Withdrawal).filter(Withdrawal.id == wid).one_or_none()
+    if not w:
+        return jsonify({"error": "not_found"}), 404
+    if w.status == "sent":
+        return jsonify({"ok": True, "already": True})
+    w.status = "sent"
+    w.settled_at = datetime.utcnow()
+    s.add(w)
+    s.commit()
+    return jsonify({"ok": True})
+
+
 @api_bp.get("/competition/<slug>")
 def competition_detail(slug: str):
     session = get_session()
@@ -1309,3 +1440,674 @@ def datasource_detail(slug: str):
     if not ds:
         return jsonify({"error": "not_found"}), 404
     return jsonify(ds)
+
+
+# ---------------------- RLN (RGB Lightning Node) Proxies ----------------------
+def _require_auth_session():
+    uid = session.get("user_id")
+    if not uid:
+        return None, (jsonify({"error": "unauthorized"}), 401)
+    s = get_session()
+    user = s.query(User).filter(User.id == uid).one_or_none()
+    if not user:
+        return None, (jsonify({"error": "unauthorized"}), 401)
+    return user, None
+
+
+@api_bp.get("/rln/nodeinfo")
+def rln_nodeinfo():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    cli = RLNClient()
+    try:
+        return jsonify(cli.nodeinfo())
+    except Exception as e:
+        return jsonify({"error": f"rln_nodeinfo_failed: {e}"}), 502
+
+
+@api_bp.post("/rln/btcbalance")
+def rln_btcbalance():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    cli = RLNClient()
+    try:
+        return jsonify(cli.btcbalance())
+    except Exception as e:
+        return jsonify({"error": f"rln_btcbalance_failed: {e}"}), 502
+
+
+@api_bp.post("/rln/listassets")
+def rln_listassets():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    cli = RLNClient()
+    try:
+        return jsonify(cli.listassets())
+    except Exception as e:
+        return jsonify({"error": f"rln_listassets_failed: {e}"}), 502
+
+
+@api_bp.post("/rln/assetbalance")
+def rln_assetbalance():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    asset_id = str(body.get("asset_id") or "").strip()
+    if not asset_id:
+        return jsonify({"error": "asset_id_required"}), 400
+    cli = RLNClient()
+    try:
+        return jsonify(cli.assetbalance(asset_id))
+    except Exception as e:
+        return jsonify({"error": f"rln_assetbalance_failed: {e}"}), 502
+
+
+@api_bp.post("/rln/lninvoice")
+def rln_lninvoice():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    amount_msat = int(body.get("amount_msat") or 0)
+    memo = body.get("memo")
+    if amount_msat <= 0:
+        return jsonify({"error": "invalid_amount_msat"}), 400
+    cli = RLNClient()
+    try:
+        return jsonify(cli.lninvoice(amount_msat=amount_msat, memo=memo))
+    except Exception as e:
+        return jsonify({"error": f"rln_lninvoice_failed: {e}"}), 502
+
+
+@api_bp.post("/rln/payln")
+def rln_payln():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    invoice = str(body.get("invoice") or "").strip()
+    if not invoice:
+        return jsonify({"error": "invoice_required"}), 400
+    cli = RLNClient()
+    try:
+        return jsonify(cli.sendbtc(invoice))
+    except Exception as e:
+        return jsonify({"error": f"rln_payln_failed: {e}"}), 502
+
+
+@api_bp.post("/rln/rgbinvoice")
+def rln_rgbinvoice():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    asset_id = str(body.get("asset_id") or "").strip()
+    amount = int(body.get("amount") or 0)
+    endpoints = body.get("transport_endpoints")
+    if not asset_id or amount <= 0:
+        return jsonify({"error": "asset_id_and_amount_required"}), 400
+    cli = RLNClient()
+    try:
+        return jsonify(cli.rgbinvoice(asset_id=asset_id, amount=amount, transport_endpoints=endpoints))
+    except Exception as e:
+        return jsonify({"error": f"rln_rgbinvoice_failed: {e}"}), 502
+
+
+@api_bp.post("/rln/payrgb")
+def rln_payrgb():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    invoice = str(body.get("invoice") or "").strip()
+    if not invoice:
+        return jsonify({"error": "invoice_required"}), 400
+    cli = RLNClient()
+    try:
+        return jsonify(cli.sendasset(invoice))
+    except Exception as e:
+        return jsonify({"error": f"rln_payrgb_failed: {e}"}), 502
+
+@api_bp.post("/rln/issue/nia")
+def rln_issue_nia():
+    user, err = _require_auth_session()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    ticker = str(body.get("ticker") or "").strip()
+    name = str(body.get("name") or "").strip()
+    amounts = body.get("amounts")
+    precision = int(body.get("precision") or 0)
+    if not ticker or not name or not isinstance(amounts, list) or not amounts:
+        return jsonify({"error": "ticker_name_amounts_required"}), 400
+    try:
+        amounts_int = [int(x) for x in amounts]
+    except Exception:
+        return jsonify({"error": "amounts_must_be_ints"}), 400
+    cli = RLNClient()
+    try:
+        return jsonify(cli.issueasset_nia(ticker=ticker, name=name, amounts=amounts_int, precision=precision))
+    except Exception as e:
+        return jsonify({"error": f"rln_issue_nia_failed: {e}"}), 502
+
+
+# ---------------------- AMM Endpoints ----------------------
+def _require_user_and_session():
+    uid = session.get("user_id")
+    if not uid:
+        return None, (jsonify({"error": "unauthorized"}), 401)
+    s = get_session()
+    user = s.query(User).filter(User.id == uid).one_or_none()
+    if not user:
+        return None, (jsonify({"error": "unauthorized"}), 401)
+    return (uid, s), None
+
+
+def _amm_effective_reserves(s, pool_id: int):
+    pl = s.query(PoolLiquidity).filter(PoolLiquidity.pool_id == pool_id).one_or_none()
+    if not pl:
+        return None
+    R_rgb = float(pl.reserve_rgb or 0) + float(pl.reserve_rgb_virtual or 0)
+    R_btc = float(pl.reserve_btc or 0) + float(pl.reserve_btc_virtual or 0)
+    return R_rgb, R_btc
+
+
+@api_bp.get("/amm/quote")
+def amm_quote():
+    try:
+        pool_id = int(request.args.get("pool_id", 0))
+        asset_in = (request.args.get("asset_in", "") or "").upper()
+        amount_in = float(request.args.get("amount_in", 0) or 0)
+    except Exception:
+        return jsonify({"error": "invalid_params"}), 400
+    if pool_id <= 0 or amount_in <= 0 or asset_in not in {"BTC", "RGB"}:
+        return jsonify({"error": "invalid_params"}), 400
+    s = get_session()
+    pool = s.query(Pool).filter(Pool.id == pool_id, Pool.is_active == True).one_or_none()  # noqa: E712
+    if not pool:
+        return jsonify({"error": "pool_not_found"}), 404
+    reserves = _amm_effective_reserves(s, pool.id)
+    if not reserves:
+        return jsonify({"error": "no_liquidity"}), 400
+    R_rgb, R_btc = reserves
+    fee_bps = int(pool.fee_bps or 100)
+    total_fee = fee_bps / 10000.0
+    if asset_in == "BTC":
+        # BTC -> RGB (fee on BTC input)
+        R_in, R_out = R_btc, R_rgb
+        ain_eff = amount_in * (1.0 - total_fee)
+        if R_in <= 0 or R_out <= 0:
+            return jsonify({"error": "no_liquidity"}), 400
+        amount_out = (ain_eff * R_out) / (R_in + ain_eff)
+    else:
+        # RGB -> BTC (fee on BTC output)
+        R_in, R_out = R_rgb, R_btc
+        if R_in <= 0 or R_out <= 0:
+            return jsonify({"error": "no_liquidity"}), 400
+        out_gross = (amount_in * R_out) / (R_in + amount_in)
+        amount_out = out_gross * (1.0 - total_fee)
+    return jsonify({"pool_id": pool.id, "asset_in": asset_in, "amount_in": amount_in, "amount_out": amount_out, "fee_bps": fee_bps})
+
+
+@api_bp.post("/amm/swap/init")
+def amm_swap_init():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    body = request.get_json(silent=True) or {}
+    try:
+        pool_id = int(body.get("pool_id") or 0)
+        asset_in = str(body.get("asset_in") or "").upper()
+        amount_in = float(body.get("amount_in") or 0)
+        min_out = float(body.get("min_out") or 0)
+        deadline_ts = int(body.get("deadline_ts") or 0)
+    except Exception:
+        return jsonify({"error": "invalid_body"}), 400
+    if pool_id <= 0 or asset_in not in {"BTC", "RGB"} or amount_in <= 0 or min_out < 0 or deadline_ts <= 0:
+        return jsonify({"error": "invalid_params"}), 400
+    pool = s.query(Pool).filter(Pool.id == pool_id, Pool.is_active == True).one_or_none()  # noqa: E712
+    if not pool:
+        return jsonify({"error": "pool_not_found"}), 404
+    # Resolve asset ids
+    asset_btc_id = int(pool.asset_btc_id)
+    asset_rgb_id = int(pool.asset_rgb_id)
+    if asset_in == "BTC":
+        asset_in_id, asset_out_id = asset_btc_id, asset_rgb_id
+    else:
+        asset_in_id, asset_out_id = asset_rgb_id, asset_btc_id
+    # Create Swap (pending approval)
+    import secrets, time as _time
+    nonce = secrets.token_hex(16)
+    sw = Swap(
+        pool_id=pool_id,
+        user_id=uid,
+        asset_in_id=asset_in_id,
+        asset_out_id=asset_out_id,
+        amount_in=amount_in,
+        min_out=min_out,
+        fee_total_bps=pool.fee_bps or 100,
+        fee_lp_bps=pool.lp_fee_bps or 50,
+        fee_platform_bps=pool.platform_fee_bps or 50,
+        status="pending_approval",
+        nonce=nonce,
+        deadline_ts=deadline_ts,
+    )
+    s.add(sw)
+    s.commit()
+    # Payload to sign over Nostr (store JSON in event.content)
+    payload = {
+        "type": "swap",
+        "swap_id": sw.id,
+        "pool_id": pool_id,
+        "asset_in_id": asset_in_id,
+        "asset_out_id": asset_out_id,
+        "amount_in": amount_in,
+        "min_out": min_out,
+        "nonce": nonce,
+        "deadline_ts": deadline_ts,
+    }
+    return jsonify({"ok": True, "swap_id": sw.id, "payload": payload})
+
+
+@api_bp.post("/amm/swap/confirm")
+def amm_swap_confirm():
+    # Verify Nostr event signature and execute swap atomically
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    body = request.get_json(silent=True) or {}
+    ev = body.get("event") or {}
+    swap_id = int(body.get("swap_id") or 0)
+    if swap_id <= 0:
+        return jsonify({"error": "invalid_swap_id"}), 400
+    sw = s.query(Swap).filter(Swap.id == swap_id, Swap.user_id == uid).one_or_none()
+    if not sw or sw.status != "pending_approval":
+        return jsonify({"error": "invalid_state"}), 400
+    # Signature verification
+    if schnorr_verify is None:
+        return jsonify({"error": "server_missing_schnorr"}), 500
+    try:
+        pubkey = str(ev.get("pubkey"))
+        content = str(ev.get("content"))
+        sig = str(ev.get("sig"))
+        ev_id = str(ev.get("id"))
+        if not (len(pubkey) == 64 and len(sig) == 128 and len(ev_id) == 64):
+            return jsonify({"error": "invalid_event_fields"}), 400
+        calc_id = _nostr_event_id(ev)
+        if calc_id != ev_id:
+            return jsonify({"error": "invalid_event_id"}), 400
+        ok = schnorr_verify(bytes.fromhex(sig), bytes.fromhex(ev_id), bytes.fromhex(pubkey))
+        if not ok:
+            return jsonify({"error": "invalid_signature"}), 400
+        # Content must match the swap
+        data = json.loads(content)
+        required = ["type","swap_id","pool_id","asset_in_id","asset_out_id","amount_in","min_out","nonce","deadline_ts"]
+        if any(k not in data for k in required):
+            return jsonify({"error": "invalid_payload"}), 400
+        if data["type"] != "swap" or int(data["swap_id"]) != sw.id or data["nonce"] != sw.nonce or int(data["deadline_ts"]) != int(sw.deadline_ts):
+            return jsonify({"error": "mismatch"}), 400
+        # Deadline
+        if int(sw.deadline_ts or 0) < int(datetime.utcnow().timestamp()):
+            return jsonify({"error": "expired"}), 400
+    except Exception as e:
+        return jsonify({"error": f"verify_failed: {e}"}), 400
+    # Compute output again and perform the swap
+    pool = s.query(Pool).filter(Pool.id == sw.pool_id, Pool.is_active == True).one_or_none()  # noqa: E712
+    if not pool:
+        return jsonify({"error": "pool_not_found"}), 404
+    pl = s.query(PoolLiquidity).filter(PoolLiquidity.pool_id == pool.id).one_or_none()
+    if not pl:
+        return jsonify({"error": "no_liquidity"}), 400
+    R_rgb = float(pl.reserve_rgb or 0) + float(pl.reserve_rgb_virtual or 0)
+    R_btc = float(pl.reserve_btc or 0) + float(pl.reserve_btc_virtual or 0)
+    fee_bps = int(pool.fee_bps or 100)
+    platform_bps = int(pool.platform_fee_bps or 50)
+    lp_bps = int(pool.lp_fee_bps or 50)
+    total_fee = fee_bps / 10000.0
+    amount_in = float(sw.amount_in or 0)
+    min_out = float(sw.min_out or 0)
+    # Determine direction
+    if sw.asset_in_id == pool.asset_btc_id:
+        # BTC -> RGB: fee on BTC input
+        R_in, R_out = R_btc, R_rgb
+        if R_in <= 0 or R_out <= 0:
+            return jsonify({"error": "no_liquidity"}), 400
+        ain_eff = amount_in * (1.0 - total_fee)
+        amount_out = (ain_eff * R_out) / (R_in + ain_eff)
+        if amount_out < min_out:
+            return jsonify({"error": "slippage"}), 400
+        platform_fee = amount_in * (platform_bps / 10000.0)
+        lp_fee = amount_in * (lp_bps / 10000.0)
+        # Update balances and reserves
+        def get_balance(user_id: int, asset_id: int):
+            ub = s.query(UserBalance).filter(UserBalance.user_id == user_id, UserBalance.asset_id == asset_id).one_or_none()
+            if not ub:
+                ub = UserBalance(user_id=user_id, asset_id=asset_id, balance=0, available=0)
+                s.add(ub)
+                s.flush()
+            return ub
+        bal_in = get_balance(uid, sw.asset_in_id)
+        bal_out = get_balance(uid, sw.asset_out_id)
+        if float(bal_in.available or 0) < amount_in:
+            return jsonify({"error": "insufficient_funds"}), 400
+        from decimal import Decimal as D
+        # User debits BTC, credits RGB
+        bal_in.available = (bal_in.available or 0) - D(str(amount_in))
+        bal_in.balance = (bal_in.balance or 0) - D(str(amount_in))
+        bal_out.available = (bal_out.available or 0) + D(str(amount_out))
+        bal_out.balance = (bal_out.balance or 0) + D(str(amount_out))
+        # Platform BTC credit
+        platform_user_id = int(os.environ.get("PLATFORM_USER_ID", "0") or 0)
+        if platform_user_id > 0 and platform_fee > 0:
+            pbal = get_balance(platform_user_id, sw.asset_in_id)
+            pbal.available = (pbal.available or 0) + D(str(platform_fee))
+            pbal.balance = (pbal.balance or 0) + D(str(platform_fee))
+        # Reserves: add (amount_in - platform_fee) to BTC (LP fee remains in pool); subtract RGB amount_out
+        pl.reserve_btc = D(str(float(pl.reserve_btc or 0) + (amount_in - platform_fee)))
+        pl.reserve_rgb = D(str(max(0.0, float(pl.reserve_rgb or 0) - amount_out)))
+    else:
+        # RGB -> BTC: fee on BTC output
+        R_in, R_out = R_rgb, R_btc
+        if R_in <= 0 or R_out <= 0:
+            return jsonify({"error": "no_liquidity"}), 400
+        out_gross = (amount_in * R_out) / (R_in + amount_in)
+        platform_fee = out_gross * (platform_bps / 10000.0)
+        lp_fee = out_gross * (lp_bps / 10000.0)
+        amount_out = out_gross - (platform_fee + lp_fee)
+        if amount_out < min_out:
+            return jsonify({"error": "slippage"}), 400
+        # Update balances and reserves
+        def get_balance(user_id: int, asset_id: int):
+            ub = s.query(UserBalance).filter(UserBalance.user_id == user_id, UserBalance.asset_id == asset_id).one_or_none()
+            if not ub:
+                ub = UserBalance(user_id=user_id, asset_id=asset_id, balance=0, available=0)
+                s.add(ub)
+                s.flush()
+            return ub
+        bal_in = get_balance(uid, sw.asset_in_id)
+        bal_out = get_balance(uid, sw.asset_out_id)
+        if float(bal_in.available or 0) < amount_in:
+            return jsonify({"error": "insufficient_funds"}), 400
+        from decimal import Decimal as D
+        # User debits RGB, credits BTC (net after fee)
+        bal_in.available = (bal_in.available or 0) - D(str(amount_in))
+        bal_in.balance = (bal_in.balance or 0) - D(str(amount_in))
+        bal_out.available = (bal_out.available or 0) + D(str(amount_out))
+        bal_out.balance = (bal_out.balance or 0) + D(str(amount_out))
+        # Platform BTC credit (fee on output)
+        platform_user_id = int(os.environ.get("PLATFORM_USER_ID", "0") or 0)
+        if platform_user_id > 0 and platform_fee > 0:
+            pbal = get_balance(platform_user_id, sw.asset_out_id)
+            pbal.available = (pbal.available or 0) + D(str(platform_fee))
+            pbal.balance = (pbal.balance or 0) + D(str(platform_fee))
+        # Reserves: add RGB amount_in; subtract BTC (amount_out + platform_fee) so LP fee remains in pool
+        pl.reserve_rgb = D(str(float(pl.reserve_rgb or 0) + amount_in))
+        pl.reserve_btc = D(str(max(0.0, float(pl.reserve_btc or 0) - (amount_out + platform_fee))))
+    def get_balance(user_id: int, asset_id: int):
+        ub = s.query(UserBalance).filter(UserBalance.user_id == user_id, UserBalance.asset_id == asset_id).one_or_none()
+        if not ub:
+            ub = UserBalance(user_id=user_id, asset_id=asset_id, balance=0, available=0)
+            s.add(ub)
+            s.flush()
+        return ub
+    bal_in = get_balance(uid, sw.asset_in_id)
+    bal_out = get_balance(uid, sw.asset_out_id)
+    if float(bal_in.available or 0) < amount_in:
+        return jsonify({"error": "insufficient_funds"}), 400
+    # Platform fee credit
+    platform_fee = amount_in * (platform_bps / 10000.0)
+    platform_user_id = int(os.environ.get("PLATFORM_USER_ID", "0") or 0)
+    # Update balances and reserves atomically
+    from decimal import Decimal as D
+    bal_in.available = (bal_in.available or 0) - D(str(amount_in))
+    bal_in.balance = (bal_in.balance or 0) - D(str(amount_in))
+    bal_out.available = (bal_out.available or 0) + D(str(amount_out))
+    bal_out.balance = (bal_out.balance or 0) + D(str(amount_out))
+    if platform_user_id > 0 and platform_fee > 0:
+        pbal = get_balance(platform_user_id, sw.asset_in_id)
+        pbal.available = (pbal.available or 0) + D(str(platform_fee))
+        pbal.balance = (pbal.balance or 0) + D(str(platform_fee))
+    # Update pool reserves: add gross input to R_in; subtract output from R_out.
+    if sw.asset_in_id == pool.asset_btc_id:
+        pl.reserve_btc = D(str(float(pl.reserve_btc or 0) + amount_in))
+        pl.reserve_rgb = D(str(max(0.0, float(pl.reserve_rgb or 0) - amount_out)))
+    else:
+        pl.reserve_rgb = D(str(float(pl.reserve_rgb or 0) + amount_in))
+        pl.reserve_btc = D(str(max(0.0, float(pl.reserve_btc or 0) - amount_out)))
+    pl.updated_at = datetime.utcnow()
+    # Mark swap and record approval
+    sw.amount_out = amount_out
+    sw.status = "executed"
+    sw.executed_at = datetime.utcnow()
+    appr = Approval(swap_id=sw.id, nostr_pubkey=ev.get("pubkey"), event_id=ev.get("id"), sig=ev.get("sig"), approved=True)
+    s.add(appr)
+    # Ledger entries
+    s.add_all([
+        LedgerEntry(user_id=uid, asset_id=sw.asset_in_id, delta=D(str(-amount_in)), ref_type="swap", ref_id=sw.id),
+        LedgerEntry(user_id=uid, asset_id=sw.asset_out_id, delta=D(str(amount_out)), ref_type="swap", ref_id=sw.id),
+    ])
+    if platform_user_id > 0 and platform_fee > 0:
+        # Platform fee asset depends on direction: BTC asset id is sw.asset_in_id for BTC->RGB, or sw.asset_out_id for RGB->BTC
+        fee_asset_id = sw.asset_in_id if sw.asset_in_id == pool.asset_btc_id else sw.asset_out_id
+        s.add(LedgerEntry(user_id=platform_user_id, asset_id=fee_asset_id, delta=D(str(platform_fee)), ref_type="fee", ref_id=sw.id))
+    s.commit()
+    return jsonify({"ok": True, "swap_id": sw.id, "amount_out": amount_out})
+
+
+@api_bp.post("/launchpad/issue_nia_and_pool")
+def launchpad_issue_and_pool():
+    # Issue RGB asset via RLN and create a vAMM pool with virtual reserves
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    body = request.get_json(silent=True) or {}
+    ticker = str(body.get("ticker") or "").upper().strip()
+    name = str(body.get("name") or "").strip()
+    amounts = body.get("amounts") or [1]
+    precision = int(body.get("precision") or 0)
+    initial_price = float(body.get("initial_price") or 0)
+    virtual_depth_btc = float(body.get("virtual_depth_btc") or 0)
+    if not ticker or not name or initial_price <= 0 or virtual_depth_btc <= 0:
+        return jsonify({"error": "invalid_params"}), 400
+    # Issue via RLN
+    cli = RLNClient()
+    try:
+        res = cli.issueasset_nia(ticker=ticker, name=name, amounts=[int(x) for x in amounts], precision=precision)
+        asset_id = res.get("asset_id") or res.get("asset") or None
+        if not asset_id:
+            return jsonify({"error": "rln_issue_failed", "detail": res}), 502
+    except Exception as e:
+        return jsonify({"error": f"rln_issue_failed: {e}"}), 502
+    # Ensure BTC asset exists
+    btc = s.query(Asset).filter(Asset.symbol == "BTC").one_or_none()
+    if not btc:
+        btc = Asset(symbol="BTC", name="Bitcoin", precision=8, rln_asset_id=None)
+        s.add(btc)
+        s.flush()
+    # Create RGB asset (track creator)
+    rgb = s.query(Asset).filter(Asset.symbol == ticker).one_or_none()
+    if not rgb:
+        rgb = Asset(symbol=ticker, name=name, precision=precision, rln_asset_id=asset_id, created_by_user_id=uid)
+        s.add(rgb)
+        s.flush()
+    # Create pool and virtual reserves
+    pool = Pool(asset_rgb_id=rgb.id, asset_btc_id=btc.id, fee_bps=100, lp_fee_bps=50, platform_fee_bps=50, is_vamm=True, is_active=True)
+    s.add(pool)
+    s.flush()
+    reserve_btc_virtual = virtual_depth_btc
+    reserve_rgb_virtual = virtual_depth_btc / initial_price
+    pl = PoolLiquidity(pool_id=pool.id, reserve_rgb=0, reserve_btc=0, reserve_rgb_virtual=reserve_rgb_virtual, reserve_btc_virtual=reserve_btc_virtual)
+    s.add(pl)
+    s.commit()
+    return jsonify({"ok": True, "asset": {"id": rgb.id, "symbol": rgb.symbol, "rln_asset_id": rgb.rln_asset_id}, "pool_id": pool.id, "virtual": {"btc": reserve_btc_virtual, "rgb": reserve_rgb_virtual}})
+
+
+# ---------------------- Admin Endpoints ----------------------
+def _is_admin(s, user_id: int) -> bool:
+    admin_uid = int(os.environ.get("ADMIN_USER_ID", "0") or 0)
+    if admin_uid and user_id == admin_uid:
+        return True
+    admin_npub = os.environ.get("ADMIN_NPUB")
+    if admin_npub:
+        u = s.query(User).filter(User.id == user_id).one_or_none()
+        return bool(u and (u.npub or '').lower() == admin_npub.lower())
+    return False
+
+
+@api_bp.get("/admin/users")
+def admin_users():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    rows = s.query(User).order_by(User.id.asc()).all()
+    out = [{"id": u.id, "npub": u.npub, "display_name": u.display_name, "avatar_url": u.avatar_url} for u in rows]
+    return jsonify(out)
+
+
+@api_bp.get("/admin/assets")
+def admin_assets():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    rows = s.query(Asset).order_by(Asset.id.asc()).all()
+    creator_ids = [a.created_by_user_id for a in rows if a.created_by_user_id]
+    creators = {}
+    if creator_ids:
+        for u in s.query(User).filter(User.id.in_(creator_ids)).all():
+            creators[u.id] = {"id": u.id, "display_name": u.display_name, "npub": u.npub}
+    out = []
+    for a in rows:
+        creator = creators.get(a.created_by_user_id) if a.created_by_user_id else None
+        out.append({
+            "id": a.id,
+            "symbol": a.symbol,
+            "name": a.name,
+            "precision": a.precision,
+            "rln_asset_id": a.rln_asset_id,
+            "created_by_user_id": a.created_by_user_id,
+            "creator": creator,
+        })
+    return jsonify(out)
+
+
+@api_bp.get("/admin/pools")
+def admin_pools():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    pools = s.query(Pool).order_by(Pool.id.asc()).all()
+    asset_ids = set()
+    for p in pools:
+        asset_ids.add(p.asset_rgb_id)
+        asset_ids.add(p.asset_btc_id)
+    assets_map = {}
+    if asset_ids:
+        for a in s.query(Asset).filter(Asset.id.in_(list(asset_ids))).all():
+            assets_map[a.id] = a.symbol
+    out = []
+    for p in pools:
+        pl = s.query(PoolLiquidity).filter(PoolLiquidity.pool_id == p.id).one_or_none()
+        R_rgb = float((pl.reserve_rgb if pl else 0) or 0) + float((pl.reserve_rgb_virtual if pl else 0) or 0)
+        R_btc = float((pl.reserve_btc if pl else 0) or 0) + float((pl.reserve_btc_virtual if pl else 0) or 0)
+        out.append({
+            "id": p.id,
+            "asset_rgb_id": p.asset_rgb_id,
+            "asset_btc_id": p.asset_btc_id,
+            "asset_rgb_symbol": assets_map.get(p.asset_rgb_id),
+            "asset_btc_symbol": assets_map.get(p.asset_btc_id),
+            "fee_bps": p.fee_bps,
+            "lp_fee_bps": p.lp_fee_bps,
+            "platform_fee_bps": p.platform_fee_bps,
+            "is_vamm": p.is_vamm,
+            "is_active": p.is_active,
+            "reserves": {"rgb": R_rgb, "btc": R_btc},
+        })
+    return jsonify(out)
+
+
+@api_bp.get("/admin/deposits")
+def admin_deposits():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    rows = s.query(Deposit).order_by(Deposit.id.desc()).limit(500).all()
+    user_ids = {d.user_id for d in rows}
+    asset_ids = {d.asset_id for d in rows}
+    users = {}
+    assets = {}
+    if user_ids:
+        for u in s.query(User).filter(User.id.in_(list(user_ids))).all():
+            users[u.id] = {"display_name": u.display_name, "npub": u.npub}
+    if asset_ids:
+        for a in s.query(Asset).filter(Asset.id.in_(list(asset_ids))).all():
+            assets[a.id] = a.symbol
+    out = []
+    for d in rows:
+        out.append({
+            "id": d.id,
+            "user_id": d.user_id,
+            "user_display_name": users.get(d.user_id, {}).get("display_name"),
+            "user_npub": users.get(d.user_id, {}).get("npub"),
+            "asset_id": d.asset_id,
+            "asset_symbol": assets.get(d.asset_id),
+            "amount": float(d.amount or 0),
+            "status": d.status,
+            "external_ref": d.external_ref,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        })
+    return jsonify(out)
+
+
+@api_bp.get("/admin/withdrawals")
+def admin_withdrawals():
+    ctx, err = _require_user_and_session()
+    if err:
+        return err
+    uid, s = ctx
+    if not _is_admin(s, uid):
+        return jsonify({"error": "forbidden"}), 403
+    rows = s.query(Withdrawal).order_by(Withdrawal.id.desc()).limit(500).all()
+    user_ids = {w.user_id for w in rows}
+    asset_ids = {w.asset_id for w in rows}
+    users = {}
+    assets = {}
+    if user_ids:
+        for u in s.query(User).filter(User.id.in_(list(user_ids))).all():
+            users[u.id] = {"display_name": u.display_name, "npub": u.npub}
+    if asset_ids:
+        for a in s.query(Asset).filter(Asset.id.in_(list(asset_ids))).all():
+            assets[a.id] = a.symbol
+    out = []
+    for w in rows:
+        out.append({
+            "id": w.id,
+            "user_id": w.user_id,
+            "user_display_name": users.get(w.user_id, {}).get("display_name"),
+            "user_npub": users.get(w.user_id, {}).get("npub"),
+            "asset_id": w.asset_id,
+            "asset_symbol": assets.get(w.asset_id),
+            "amount": float(w.amount or 0),
+            "status": w.status,
+            "external_ref": w.external_ref,
+            "created_at": w.created_at.isoformat() if w.created_at else None,
+        })
+    return jsonify(out)

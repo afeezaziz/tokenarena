@@ -355,7 +355,9 @@ async function loadTopMovers(){
 async function loadTokens(){
   bindTokensTableSorting();
   await fetchTokensData();
-  await loadTopMovers();
+  if (!window.TB_USE_HOME_INIT){
+    await loadTopMovers();
+  }
 }
 
 

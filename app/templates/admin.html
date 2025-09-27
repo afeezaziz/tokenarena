@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="battles" id="admin">
+  <h1>Admin</h1>
+  <p class="muted">Overview of users, assets (RGB), pools, deposits, and withdrawals.</p>
+
+  <div class="panel">
+    <h2>Pools</h2>
+    <table class="tokens-table" id="tbl-pools">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>RGB Asset</th>
+          <th>BTC Asset</th>
+          <th>Fee bps</th>
+          <th>LP/Platform</th>
+          <th>Reserves (RGB)</th>
+          <th>Reserves (BTC)</th>
+          <th>vAMM</th>
+          <th>Active</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Assets (RGB)</h2>
+    <table class="tokens-table" id="tbl-assets">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Symbol</th>
+          <th>Name</th>
+          <th>Precision</th>
+          <th>RGB Asset ID</th>
+          <th>Creator</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Users</h2>
+    <table class="tokens-table" id="tbl-users">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>npub</th>
+          <th>Display Name</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Quick Funds Ops</h2>
+    <div class="form-grid">
+      <label>User ID <input type="number" id="funds-user-id" placeholder="user_id" /></label>
+      <label>Asset ID <input type="number" id="funds-asset-id" placeholder="asset_id" /></label>
+      <label>Amount <input type="number" step="0.00000001" id="funds-amount" placeholder="amount" /></label>
+      <label>External Ref <input type="text" id="funds-ref" placeholder="invoice/txid (optional)" /></label>
+    </div>
+    <div class="actions">
+      <button id="btn-create-deposit" class="btn">Create Deposit</button>
+      <button id="btn-create-withdrawal" class="btn">Create Withdrawal</button>
+      <span id="funds-msg" class="muted"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Deposits</h2>
+    <table class="tokens-table" id="tbl-deposits">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>User</th>
+          <th>Asset</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Ref</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Withdrawals</h2>
+    <table class="tokens-table" id="tbl-withdrawals">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>User</th>
+          <th>Asset</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Ref</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+  <script defer src="{{ url_for('static', filename='js/admin.js') }}?v={{ STATIC_VERSION }}"></script>
+{% endblock %}

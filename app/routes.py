@@ -201,6 +201,16 @@ def launchpad_page():
     )
 
 
+@ui_bp.route("/admin")
+def admin_page():
+    # Basic admin UI (data fetched via /api/admin/* endpoints)
+    return render_template(
+        "admin.html",
+        title="Admin · Token Arena",
+        description="Administrative overview: users, assets, pools, deposits, withdrawals.",
+    )
+
+
 # Open Graph dynamic image endpoints
 def _render_og_image(title_text: str, subtitle_text: str) -> Response:
     try:

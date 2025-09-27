@@ -10,6 +10,10 @@
   }
   </script>
   {% endblock %}
+
+{% block scripts %}
+  <script defer src="{{ url_for('static', filename='js/home.js') }}?v={{ STATIC_VERSION }}"></script>
+{% endblock %}
   {% block content %}
   <section class="hero">
   <h1>Welcome to Token Arena — Where Tokens Go To Battle</h1>

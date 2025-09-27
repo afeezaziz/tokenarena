@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    FLASK_ENV=production \
+    REDIS_URL=redis://redis:6379/0 \
+    RQ_QUEUES=default
+
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip wheel && \
+    pip install -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user and set permissions
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Run the RQ worker
+CMD ["python", "worker.py"]

@@ -4,6 +4,8 @@ import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
+import sys
+from pathlib import Path
 from alembic import context
 
 # Interpret the config file for Python logging.
@@ -14,6 +16,11 @@ if config.config_file_name is not None:
 # Database URL from env or alembic.ini fallback
 DATABASE_URL = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
+
+# Ensure project root is on sys.path so 'app' package is importable when running Alembic
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 # Target metadata from app models
 from app.models import Base  # noqa: E402
