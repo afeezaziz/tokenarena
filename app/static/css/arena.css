@@ -181,3 +181,66 @@ body.arena .tokens-table tbody tr:hover{ background: rgba(139,92,246,0.08); }
     padding: 8px;
     border-radius: 8px;
   }
+
+  /* New: Active nav + mobile nav + footer polish */
+  body.arena .nav-link.active{
+    background: linear-gradient(90deg, rgba(139,92,246,0.22), rgba(34,211,238,0.18));
+    color: var(--text);
+  }
+  body.arena .mobile-toggle{
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    border: 1px solid rgba(167,139,250,0.35);
+    color: var(--text);
+  }
+  body.arena .mobile-toggle:hover{
+    background: linear-gradient(90deg, rgba(139,92,246,0.18), rgba(34,211,238,0.18));
+    box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+  }
+  body.arena .mobile-nav{
+    background: rgba(19,24,39,0.96);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.35);
+  }
+  body.arena .footer-bottom{ border-top: 1px solid var(--border); }
+  body.arena .footer-col h4{ color: #e5e7eb; }
+  body.arena .footer-col a:hover{ color: #e5e7eb; }
+  body.arena .social a{
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    border: 1px solid rgba(167,139,250,0.35);
+  }
+  body.arena .social a:hover{
+    background: linear-gradient(90deg, rgba(139,92,246,0.22), rgba(34,211,238,0.18));
+    color: #0b0f19;
+  }
+  body.arena .back-to-top{ color: var(--muted); }
+  body.arena .back-to-top:hover{
+    color: var(--text);
+    text-shadow: 0 0 12px rgba(139,92,246,0.35);
+  }
+
+  /* CTA button (Dashboard) */
+  body.arena .btn-cta{
+    background: linear-gradient(90deg, #8b5cf6, #22d3ee);
+    border: none;
+    color: #0b0f19;
+    box-shadow: 0 8px 28px rgba(139,92,246,0.45), 0 0 0 1px rgba(139,92,246,0.35) inset;
+    font-weight: 900;
+  }
+  body.arena .btn-cta:hover{
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 38px rgba(139,92,246,0.55), 0 0 0 1px rgba(34,211,238,0.5) inset;
+  }
+  body.arena .btn-cta:focus-visible{
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.4), 0 0 0 1px rgba(34,211,238,0.6) inset;
+  }
+
+  /* Ticker badges */
+  body.arena .badge{ 
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    border: 1px solid rgba(148,163,184,0.28);
+    color: var(--text);
+  }
+  body.arena .badge.b24{ border-color: rgba(167,139,250,0.55); box-shadow: 0 0 14px rgba(139,92,246,0.28); }
+  body.arena .badge.b7{ border-color: rgba(34,211,238,0.55); box-shadow: 0 0 14px rgba(34,211,238,0.22); }

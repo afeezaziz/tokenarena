@@ -164,6 +164,43 @@ def privacy_page():
     return render_template("privacy.html", title="Privacy · Token Arena", description="Privacy policy for Token Arena.")
 
 
+@ui_bp.route("/arena")
+def arena_page():
+    # Arena page - token leaderboard
+    return render_template(
+        "arena.html",
+        title="Arena · Token Arena",
+        description="Battle-ready market intel: token leaderboards, holders, charts and competitions.",
+    )
+
+
+@ui_bp.route("/dashboard")
+def dashboard_page():
+    # Dashboard page - user dashboard (requires auth)
+    uid = session.get("user_id")
+    if not uid:
+        return redirect("/", code=302)
+    s = get_session()
+    user = s.query(User).filter(User.id == uid).one_or_none()
+    if not user:
+        return redirect("/", code=302)
+    return render_template(
+        "dashboard.html",
+        title="Dashboard · Token Arena",
+        description="Your personal Token Arena dashboard with portfolio and analytics.",
+    )
+
+
+@ui_bp.route("/launchpad")
+def launchpad_page():
+    # Launchpad page - token launchpad
+    return render_template(
+        "launchpad.html",
+        title="Launchpad · Token Arena",
+        description="Token launchpad for new and upcoming tokens.",
+    )
+
+
 # Open Graph dynamic image endpoints
 def _render_og_image(title_text: str, subtitle_text: str) -> Response:
     try:

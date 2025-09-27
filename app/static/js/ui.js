@@ -10,28 +10,31 @@
   }
 
   function updateActiveNav(){
-    const hdr = document.querySelector('header .nav');
-    if (!hdr) return;
-    const links = hdr.querySelectorAll('.nav-link');
-    links.forEach(a => { a.classList.remove('active'); a.removeAttribute('aria-current'); });
+    const containers = document.querySelectorAll('header .nav, .mobile-nav .mobile-nav-links');
+    if (!containers || containers.length === 0) return;
     const curPath = window.location.pathname.replace(/\/$/, '') || '/';
     const curHash = window.location.hash || '';
-    // Prefer hash-based link when on charts
-    if (curHash === '#charts'){
-      const chartsLink = Array.from(links).find(a => (a.getAttribute('href')||'').endsWith('/#charts'));
-      if (chartsLink){ chartsLink.classList.add('active'); chartsLink.setAttribute('aria-current','page'); return; }
-    }
-    // Otherwise match by pathname
-    const match = Array.from(links).find(a => {
-      try{
-        const u = new URL(a.href, window.location.origin);
-        const p = u.pathname.replace(/\/$/, '') || '/';
-        const h = u.hash || '';
-        if (h) return false; // avoid anchor links here
-        return p === curPath;
-      } catch { return false; }
+    containers.forEach(container => {
+      const links = container.querySelectorAll('.nav-link');
+      links.forEach(a => { a.classList.remove('active'); a.removeAttribute('aria-current'); });
+      // Prefer hash-based link when on charts
+      if (curHash === '#charts'){
+        const chartsLink = Array.from(links).find(a => (a.getAttribute('href')||'').endsWith('/#charts'));
+        if (chartsLink){ chartsLink.classList.add('active'); chartsLink.setAttribute('aria-current','page'); return; }
+      }
+      // Otherwise match by pathname
+      let match = null;
+      for (const a of links){
+        try{
+          const u = new URL(a.href, window.location.origin);
+          const p = u.pathname.replace(/\/$/, '') || '/';
+          const h = u.hash || '';
+          if (h) continue; // avoid anchor links here
+          if (p === curPath){ match = a; break; }
+        } catch { /* noop */ }
+      }
+      if (match){ match.classList.add('active'); match.setAttribute('aria-current','page'); }
     });
-    if (match){ match.classList.add('active'); match.setAttribute('aria-current','page'); }
   }
   window.TB = window.TB || {};
   window.TB.showToast = showToast;
@@ -46,8 +49,9 @@
     }
   }
   function getStoredTheme(){
-    const t = localStorage.getItem(THEME_KEY);
-    return t || systemPreferredTheme();
+    // Force Arena theme always
+    try { localStorage.setItem(THEME_KEY, 'arena'); } catch {}
+    return 'arena';
   }
   function applyTheme(theme){
     const isArena = theme === 'arena';
@@ -67,11 +71,9 @@
   }
 
   function toggleTheme(){
-    const newTheme = document.body.classList.contains('arena') ? 'light' : 'arena';
-    setTheme(newTheme);
-    if (window.TB && window.TB.showToast){
-      window.TB.showToast(newTheme === 'arena' ? 'Arena theme enabled' : 'Light theme enabled');
-    }
+    // Prevent switching: always enforce Arena
+    setTheme('arena');
+    if (window.TB && window.TB.showToast){ window.TB.showToast('Arena theme enforced'); }
   }
 
   // Demo / Mock Data Mode
@@ -675,6 +677,191 @@
     updateActiveNav();
     window.addEventListener('hashchange', updateActiveNav);
     window.addEventListener('popstate', updateActiveNav);
+
+    // Mobile menu toggle
+    const mobileToggle = document.getElementById('mobile-toggle');
+    const mobileNav = document.getElementById('mobile-nav');
+    if (mobileToggle && mobileNav){
+      mobileToggle.addEventListener('click', () => {
+        const open = document.body.classList.toggle('mobile-menu-open');
+        mobileToggle.setAttribute('aria-expanded', String(open));
+      });
+      mobileNav.querySelectorAll('a.nav-link').forEach(a => a.addEventListener('click', () => {
+        document.body.classList.remove('mobile-menu-open');
+        mobileToggle.setAttribute('aria-expanded', 'false');
+      }));
+      document.addEventListener('keydown', (e)=>{
+        if (e.key === 'Escape'){
+          document.body.classList.remove('mobile-menu-open');
+          mobileToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    // Newsletter form (simple UX)
+    const newsletter = document.getElementById('newsletter-form');
+    if (newsletter){
+      newsletter.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = newsletter.querySelector('button[type="submit"]');
+        const emailInput = newsletter.querySelector('input[name="email"]');
+        if (btn){ btn.disabled = true; btn.textContent = 'Subscribing...'; }
+        try{
+          // No backend endpoint yet; simulate async and toast
+          await new Promise(res => setTimeout(res, 500));
+          if (window.TB && window.TB.showToast){ window.TB.showToast('Thanks for subscribing!'); }
+          if (emailInput) emailInput.value = '';
+        } finally {
+          if (btn){ btn.disabled = false; btn.textContent = 'Subscribe'; }
+        }
+      });
+    }
+
+    // Footer ticker tape
+    (function initTicker(){
+      const track = document.getElementById('ticker-track');
+      if (!track) return;
+      const speedPxPerSec = 70; // adjust for comfortable speed
+      async function load(){
+        try{
+          const [tokensRes, movers24Res, movers7Res] = await Promise.all([
+            fetch('/api/tokens?page=1&page_size=100&sort=market_cap_usd&dir=desc'),
+            fetch('/api/top-movers?metric=change_24h&limit=12'),
+            fetch('/api/top-movers?metric=r7&limit=12'),
+          ]);
+          const tokensData = await tokensRes.json();
+          const movers24 = (await movers24Res.json()) || [];
+          const movers7 = (await movers7Res.json()) || [];
+          const items = Array.isArray(tokensData.items) ? tokensData.items : [];
+          render(items, movers24, movers7);
+        } catch(e){
+          // fallback: no data
+          render([], [], []);
+        }
+      }
+      function fmtPrice(v){
+        const x = Number(v||0);
+        if (x >= 1000) return `$${x.toLocaleString(undefined,{maximumFractionDigits:0})}`;
+        if (x >= 1) return `$${x.toLocaleString(undefined,{maximumFractionDigits:2})}`;
+        return `$${x.toLocaleString(undefined,{minimumFractionDigits:4, maximumFractionDigits:6})}`;
+      }
+      function fmtChg(v){
+        const n = Number(v||0);
+        const sign = n>0?'+':'';
+        return `${sign}${n.toFixed(2)}%`;
+      }
+      function render(items, movers24, movers7){
+        // Clear
+        track.innerHTML = '';
+        const bySym = new Map();
+        (items||[]).forEach(it=>{ if (it && it.symbol) bySym.set(String(it.symbol).toUpperCase(), it); });
+
+        const segTop24 = Array.isArray(movers24) ? movers24.slice(0, 10) : [];
+        const segTop7 = Array.isArray(movers7) ? movers7.slice(0, 10) : [];
+        const topDecorated = [];
+        segTop24.forEach(m => {
+          const sym = String(m.symbol||'').toUpperCase();
+          const base = bySym.get(sym) || { symbol: sym, price_usd: 0, change_24h: m.value };
+          topDecorated.push({ ...base, _badge: 'Top 24h', _badgeClass: 'b24' });
+        });
+        segTop7.forEach(m => {
+          const sym = String(m.symbol||'').toUpperCase();
+          const base = bySym.get(sym) || { symbol: sym, price_usd: 0, r7: m.value, change_24h: 0 };
+          topDecorated.push({ ...base, _badge: 'Top 7D', _badgeClass: 'b7' });
+        });
+
+        // Fill the rest with top by mcap so ticker is rich
+        const rest = (items||[]).filter(it => !topDecorated.find(x => (x.symbol||'') === (it.symbol||''))).slice(0, 20);
+        const list = [...topDecorated, ...rest];
+        const frag = document.createDocumentFragment();
+        const src = list.length ? list : [
+          { symbol: 'ARENA', price_usd: 1.0, change_24h: 2.5 },
+          { symbol: 'GLXY', price_usd: 0.245, change_24h: -1.2 },
+          { symbol: 'NX', price_usd: 12.42, change_24h: 4.1 },
+        ];
+        src.forEach(it => {
+          const item = document.createElement('div');
+          item.className = 'ticker-item ' + ((Number(it.change_24h||0) >= 0) ? 'up' : 'down');
+          const sym = document.createElement('span'); sym.className='sym'; sym.textContent = String(it.symbol||'—').toUpperCase();
+          const price = document.createElement('span'); price.className='price'; price.textContent = fmtPrice(it.price_usd);
+          const chg = document.createElement('span'); chg.className='chg'; chg.textContent = fmtChg(it.change_24h);
+          item.append(sym, price, chg);
+          if (typeof it.r7 === 'number' && !isNaN(it.r7)){
+            const r7 = document.createElement('span'); r7.className='chg'; r7.textContent = `7D ${fmtChg(it.r7)}`; item.appendChild(r7);
+          }
+          if (it._badge){
+            const badge = document.createElement('span'); badge.className = `badge ${it._badgeClass||''}`; badge.textContent = it._badge; item.appendChild(badge);
+          }
+          frag.appendChild(item);
+        });
+        // Append twice for seamless loop
+        const frag2 = frag.cloneNode(true);
+        track.appendChild(frag);
+        track.appendChild(frag2);
+        // Adjust animation duration based on width
+        requestAnimationFrame(()=>{
+          try{
+            const totalWidth = track.scrollWidth; // includes both copies
+            const halfWidth = totalWidth / 2; // one copy width
+            const duration = Math.max(20, Math.round(halfWidth / speedPxPerSec));
+            track.style.animationDuration = `${duration}s`;
+          } catch{}
+        });
+      }
+      load();
+      // Periodic refresh
+      setInterval(load, 60*1000);
+      // Adapt speed on resize
+      window.addEventListener('resize', ()=>{
+        const ev = new Event('ticker-resize');
+        document.dispatchEvent(ev);
+      });
+      document.addEventListener('ticker-resize', ()=>{
+        // Recompute duration
+        try{
+          const totalWidth = track.scrollWidth;
+          const halfWidth = totalWidth / 2;
+          const duration = Math.max(20, Math.round(halfWidth / speedPxPerSec));
+          track.style.animationDuration = `${duration}s`;
+        } catch{}
+      });
+    })();
+
+    // Dashboard CTA: sign-in via Nostr if not authenticated; otherwise navigate
+    async function getUserAuth(){
+      try{
+        if (window.TB && typeof window.TB.getMe === 'function'){
+          return await window.TB.getMe();
+        }
+        const r = await fetch('/api/auth/me');
+        const j = await r.json();
+        return j.user;
+      } catch{ return null; }
+    }
+    function wireDashboardCTA(){
+      const links = document.querySelectorAll('header a[href="/dashboard"], .mobile-nav a[href="/dashboard"]');
+      links.forEach(a => {
+        a.addEventListener('click', async (e) => {
+          // Only intercept left-click/enter without modifier keys
+          if (e.defaultPrevented) return;
+          if (e.button !== 0) return; // left button
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          const user = await getUserAuth();
+          if (user){ window.location.href = '/dashboard'; return; }
+          // Try Nostr login (Alby/OKX via shim)
+          let ok = false;
+          if (window.TB && typeof window.TB.loginWithNostr === 'function'){
+            ok = await window.TB.loginWithNostr();
+          }
+          if (ok){ window.location.href = '/dashboard'; }
+          else if (window.TB && typeof window.TB.showToast === 'function'){
+            window.TB.showToast('No Nostr provider detected. Install Alby or use OKX wallet with Nostr support.', 'error');
+          }
+        });
+      });
+    }
+    wireDashboardCTA();
   });
 })();
 

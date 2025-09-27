@@ -16,4 +16,6 @@ dependencies = [
     "alembic>=1.13.2",
     "psycopg[binary]>=3.2.1",
     "pillow>=10.0.0",
+    "whitenoise>=6.11.0",
+    "pymysql>=1.1.2",
 ]

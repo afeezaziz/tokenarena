@@ -415,9 +415,12 @@ async function loadGlobalCharts(range='30d'){
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  setSkeletonStats(true);
-  await loadOverview();
-  setSkeletonStats(false);
+  // If home.js is present, it will render Overview and Top Movers.
+  if (!window.TB_USE_HOME_INIT){
+    setSkeletonStats(true);
+    await loadOverview();
+    setSkeletonStats(false);
+  }
   await loadTokens();
   // range toggle
   const rangeWrap = document.getElementById('global-range');
@@ -462,23 +465,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // movers metric segmented
-  const moversSeg = document.getElementById('movers-metric');
-  if (moversSeg){
-    const btnStored = moversSeg.querySelector(`.btn[data-metric="${moversMetric}"]`);
-    if (btnStored){
-      moversSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
-      btnStored.classList.add('active');
+  // movers metric segmented (skip if home.js manages it)
+  if (!window.TB_USE_HOME_INIT){
+    const moversSeg = document.getElementById('movers-metric');
+    if (moversSeg){
+      const btnStored = moversSeg.querySelector(`.btn[data-metric="${moversMetric}"]`);
+      if (btnStored){
+        moversSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+        btnStored.classList.add('active');
+      }
+      moversSeg.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.btn');
+        if (!btn) return;
+        moversSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        moversMetric = btn.dataset.metric;
+        localStorage.setItem('tb_movers_metric', moversMetric);
+        await loadTopMovers();
+      });
     }
-    moversSeg.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.btn');
-      if (!btn) return;
-      moversSeg.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      moversMetric = btn.dataset.metric;
-      localStorage.setItem('tb_movers_metric', moversMetric);
-      await loadTopMovers();
-    });
   }
 
   // table metric segmented

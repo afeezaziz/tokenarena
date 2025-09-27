@@ -1,17 +1,17 @@
 from flask import Flask
 from flask import render_template, request
 try:
-    from flask_compress import Compress
-except Exception:  # pragma: no cover
+    from flask_compress import Compress  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
     Compress = None
 from datetime import timedelta
+from whitenoise import WhiteNoise
 
 from config import Config
 from .models import init_engine, init_db, remove_session
 from .routes import ui_bp
 from .api import api_bp
-from .limiter import limiter
-
+from .limiter import limiter as rate_limiter
 
 def create_app() -> Flask:
     app = Flask(__name__)
@@ -29,7 +29,7 @@ def create_app() -> Flask:
         init_db()
 
     # Initialize rate limiter
-    limiter.init_app(app)
+    rate_limiter.init_app(app)
 
     # Enable compression if available
     if Compress is not None:
@@ -38,9 +38,31 @@ def create_app() -> Flask:
         except Exception:
             pass
 
+    # Static files via WhiteNoise for efficient static serving
+    try:
+        static_prefix = app.static_url_path or '/static'
+        if not static_prefix.endswith('/'):
+            static_prefix = static_prefix + '/'
+        max_age = int(app.config.get('STATIC_CACHE_SECONDS', 86400))
+    except Exception:
+        static_prefix = '/static/'
+        max_age = 86400
+    app.wsgi_app = WhiteNoise(
+        app.wsgi_app,
+        root=app.static_folder,
+        prefix=static_prefix,
+        max_age=max_age,
+        autorefresh=app.debug,
+    )
+
     # Blueprints
     app.register_blueprint(ui_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
+
+    # Simple healthcheck endpoint
+    @app.get('/healthz')
+    def healthz():  # noqa: D401
+        return {'status': 'ok'}, 200
 
     # Ensure sessions are cleaned up per request/app context
     @app.teardown_appcontext

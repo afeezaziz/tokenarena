@@ -1,27 +1,29 @@
 # syntax=docker/dockerfile:1
+
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PORT=8000 \
-    WORKERS=3
-
-# No extra OS packages required
+    PORT=8080 \
+    WORKERS=4 \
+    FLASK_ENV=production
 
 WORKDIR /app
 
-# Copy dependency files first for better build caching
-COPY requirements.txt ./
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip wheel && \
+    pip install -r requirements.txt
 
-# Copy project
+# Copy application code (includes static files in app/static/)
 COPY . .
 
-# Non-root user
-RUN adduser --disabled-password --gecos "" appuser && chown -R appuser:appuser /app
+# Create non-root user and set permissions
+RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --access-logfile - --error-logfile - wsgi:app"]
+# Run via Gunicorn; Flask will serve /static from app/static
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT} --workers ${WORKERS} --timeout 120 --access-logfile - --error-logfile - wsgi:app"]

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "Arena",
+  "url": "{{ canonical_url }}",
+  "description": "{{ description or DEFAULT_DESCRIPTION }}"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "{{ SITE_URL }}"},
+    {"@type": "ListItem", "position": 2, "name": "Arena", "item": "{{ canonical_url }}"}
+  ]
+}
+</script>
+{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Arena</h1>
+  <p class="subtitle">Where tokens go to battle - explore the ultimate token leaderboard.</p>
+</section>
+
+<section class="battles" id="tokens">
+  <h2>Token Leaderboard</h2>
+  <div class="segmented" id="movers-metric" style="margin: 6px 0 10px;">
+    <div class="btn active" data-metric="change_24h">24h</div>
+    <div class="btn" data-metric="r7">7D</div>
+    <div class="btn" data-metric="r7_sharpe">Sharpe 7D</div>
+    <div class="btn" data-metric="holders_growth_pct_24h">Holders 24h</div>
+    <div class="btn" data-metric="share_delta_7d">Share Δ 7D</div>
+    <div class="btn" data-metric="turnover_pct">Turnover</div>
+    <div class="btn" data-metric="composite">Composite</div>
+  </div>
+  <div id="top-movers" class="movers"></div>
+
+  <div class="table-tools">
+    <input id="tokens-filter" class="search-input small" type="search" placeholder="Filter tokens (symbol or name)…" autocomplete="off" />
+    <input id="min-mcap" class="search-input small" type="number" inputmode="numeric" placeholder="Min Mcap (USD)" style="max-width: 160px;" />
+    <input id="min-volume" class="search-input small" type="number" inputmode="numeric" placeholder="Min Vol 24h (USD)" style="max-width: 180px;" />
+    <div class="tool-buttons">
+      <button class="btn" id="export-csv">Export CSV</button>
+    </div>
+    <div class="segmented" id="table-metric" style="margin-left:auto;">
+      <div class="btn active" data-metric="change_24h">24h</div>
+      <div class="btn" data-metric="r7">7D</div>
+      <div class="btn" data-metric="r7_sharpe">Sharpe 7D</div>
+      <div class="btn" data-metric="holders_growth_pct_24h">Holders 24h</div>
+      <div class="btn" data-metric="share_delta_7d">Share Δ 7D</div>
+      <div class="btn" data-metric="turnover_pct">Turnover</div>
+      <div class="btn" data-metric="composite">Composite</div>
+    </div>
+    <div class="segmented" id="spark-range">
+      <div class="btn active" data-days="7">7D</div>
+      <div class="btn" data-days="30">30D</div>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="tokens-table" aria-label="Tokens">
+      <thead>
+        <tr>
+          <th scope="col">#</th>
+          <th scope="col" class="sortable" data-key="symbol">Token <span class="arrow">▼</span></th>
+          <th scope="col" class="sortable" data-key="price_usd">Price <span class="arrow">▼</span></th>
+          <th scope="col" id="spark-col-label">7d</th>
+          <th scope="col" class="sortable" data-key="market_cap_usd">Market Cap <span class="arrow">▼</span></th>
+          <th scope="col" class="sortable" data-key="holders_count">Holders <span class="arrow">▼</span></th>
+          <th scope="col" class="sortable" data-metric="metric" id="metric-col-label">Metric <span class="arrow">▼</span></th>
+          <th scope="col" class="sortable" data-key="change_24h">24h <span class="arrow">▼</span></th>
+        </tr>
+      </thead>
+      <tbody id="tokens-tbody"></tbody>
+    </table>
+  </div>
+  <div class="pagination-bar">
+    <div class="rows-select">Rows:
+      <select id="page-size">
+        <option value="10">10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+      </select>
+    </div>
+    <div class="pagination" id="tokens-pagination"></div>
+  </div>
+</section>
+{% endblock %}

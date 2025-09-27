@@ -1,21 +1,33 @@
 /* Nostr Sign-In flow using a browser Nostr extension implementing window.nostr */
 (async function(){
   const area = document.getElementById('auth-area');
-  if (!area) return;
   const TB = (window.TB = window.TB || {});
 
+  // OKX Nostr adapter shim: if window.nostr is missing, try mapping OKX provider
+  function ensureNostrBridge(){
+    try{
+      if (window.nostr && typeof window.nostr.signEvent === 'function' && typeof window.nostr.getPublicKey === 'function'){
+        return true;
+      }
+      const okx = (window.okxwallet && (window.okxwallet.nostr || window.okxwallet.provider?.nostr || window.okxwallet.providers?.nostr)) || null;
+      if (okx && typeof okx.signEvent === 'function' && typeof okx.getPublicKey === 'function'){
+        window.nostr = {
+          getPublicKey: (...args) => okx.getPublicKey(...args),
+          signEvent: (...args) => okx.signEvent(...args),
+        };
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
   function render(user){
+    if (!area) return; // no UI surface; skip
     if (user){
-      const label = user.display_name || user.npub_bech32 || (user.npub ? (user.npub.slice(0,8)+'…') : 'User');
-      const avatar = user.avatar_url ? `<img src="${user.avatar_url}" alt="avatar" class="avatar-sm" />` : '';
-      const linkNpub = user.npub_bech32 || user.npub || '';
-      const profileHref = linkNpub ? `/u/${encodeURIComponent(linkNpub)}` : '/';
-      const showSettings = true;
-      area.innerHTML = `<div class="nav">${avatar}<a class="nav-link" href="${profileHref}">${label}</a>${showSettings ? ' <a class="nav-link" href="/settings">Settings</a>' : ''} <button id="logout-btn" class="btn">Logout</button></div>`;
+      area.innerHTML = `<div class="nav"><a class="nav-link" href="/dashboard">Dashboard</a> <button id="logout-btn" class="btn">Logout</button></div>`;
       document.getElementById('logout-btn')?.addEventListener('click', async ()=>{
         await fetch('/api/auth/logout', { method:'POST' });
         if (window.TB?.showToast) TB.showToast('Logged out');
-        // clear demo user if any
         if (TB.__mock) TB.__mock.user = null;
         load();
       });
@@ -32,6 +44,10 @@
   }
 
   function renderNoExtensionUI(){
+    if (!area){
+      if (TB.showToast) TB.showToast('No Nostr extension detected. Install Alby or enable an OKX Nostr provider.', 'error');
+      return;
+    }
     area.innerHTML = `
       <div class="nav" style="gap:8px; flex-wrap:wrap">
         <span class="muted">No Nostr extension detected.</span>
@@ -53,6 +69,8 @@
   }
 
   async function login(){
+    // Attempt to bridge OKX -> window.nostr if needed
+    ensureNostrBridge();
     if (!window.nostr || !window.nostr.signEvent){
       renderNoExtensionUI();
       return;
@@ -80,16 +98,24 @@
       const vj = await vr.json();
       if (!vr.ok){ throw new Error(vj.error || 'Verify failed'); }
       if (window.TB?.showToast) TB.showToast('Signed in');
-      load();
+      await load();
+      return true;
     } catch(e){
       if (window.TB?.showToast) TB.showToast(String(e.message || e), 'error');
+      return false;
     }
   }
 
   async function load(){
     const user = await getMe();
-    render(user);
+    if (area) render(user);
+    return user;
   }
+
+  // Expose helpers even if area/inline UI is absent
+  TB.getMe = getMe;
+  TB.loginWithNostr = login;
+  TB.logout = async () => { try{ await fetch('/api/auth/logout', { method:'POST' }); TB.__mock && (TB.__mock.user = null); } catch{} finally { await load(); } };
 
   await load();
 
