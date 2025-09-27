@@ -83,7 +83,9 @@ def nostr_verify():
     Body: { event: {id,pubkey,created_at,kind,tags,content,sig} }
     """
     if schnorr_verify is None:
-        return jsonify({"error": "server missing coincurve; install coincurve to enable nostr login"}), 500
+        # Return 400 so the client can display a helpful message instead of a hard 500.
+        # Typically resolved by installing coincurve (see requirements.txt) or using Demo Mode locally.
+        return jsonify({"error": "server missing coincurve; install coincurve to enable nostr login"}), 400
     session_db = get_session()
     body = request.get_json(silent=True) or {}
     ev = body.get("event") or {}

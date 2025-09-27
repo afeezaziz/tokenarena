@@ -16,8 +16,30 @@
 {% endblock %}
   {% block content %}
   <section class="hero">
-  <h1>Welcome to Token Arena — Where Tokens Go To Battle</h1>
-  <p class="subtitle">Battle-ready market intel, leaderboards, holders and charts. Built for fun, tuned for edge.</p>
+  <div class="pill"><span class="dot"></span> Live Demo</div>
+  <h1>Token Arena — Battle-tested Market Intel</h1>
+  <p class="subtitle">Leaderboards, holders, charts and competitions across the ecosystem.</p>
+  <div class="cta-row">
+    <a href="/dashboard" class="btn btn-cta dashboard-btn"><span class="label">Open Dashboard</span> <span class="arrow" aria-hidden="true">→</span></a>
+    <a href="/#tokens" class="btn">Explore Tokens</a>
+  </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>Real-time Leaderboards</h3>
+        <p>Rank tokens by returns, holders growth, share delta, turnover and composite scores.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Holder Analytics</h3>
+        <p>Understand adoption with 24h holders growth, top holders and wallet distribution.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Competition-ready</h3>
+        <p>Run friendly trading cups and track scores with mock data or your own datasource.</p>
+      </div>
+    </div>
   </section>
 
   <section class="battles" id="demo-presets">

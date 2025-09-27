@@ -530,6 +530,18 @@
     }
   }
 
+  // Layout: keep space for fixed header/footer using CSS vars
+  function updateLayoutVars(){
+    try{
+      const header = document.querySelector('.site-header');
+      const footer = document.querySelector('.site-footer');
+      const h = header ? header.offsetHeight : 64;
+      const f = footer ? footer.offsetHeight : 40;
+      document.body.style.setProperty('--header-h', h + 'px');
+      document.body.style.setProperty('--footer-h', f + 'px');
+    } catch{}
+  }
+
   function showDemoSettings(){
     let panel = document.getElementById('demo-settings');
     if (!panel){
@@ -675,6 +687,9 @@
     updateDemoButtonUI();
     ensureDemoBanner();
     updateActiveNav();
+    // Layout vars for fixed header/footer
+    updateLayoutVars();
+    window.addEventListener('resize', updateLayoutVars);
     window.addEventListener('hashchange', updateActiveNav);
     window.addEventListener('popstate', updateActiveNav);
 
@@ -685,14 +700,17 @@
       mobileToggle.addEventListener('click', () => {
         const open = document.body.classList.toggle('mobile-menu-open');
         mobileToggle.setAttribute('aria-expanded', String(open));
+        updateLayoutVars();
       });
       mobileNav.querySelectorAll('a.nav-link').forEach(a => a.addEventListener('click', () => {
         document.body.classList.remove('mobile-menu-open');
         mobileToggle.setAttribute('aria-expanded', 'false');
+        updateLayoutVars();
       }));
       document.addEventListener('keydown', (e)=>{
         if (e.key === 'Escape'){
           document.body.classList.remove('mobile-menu-open');
+          updateLayoutVars();
           mobileToggle.setAttribute('aria-expanded', 'false');
         }
       });

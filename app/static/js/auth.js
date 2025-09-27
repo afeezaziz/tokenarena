@@ -6,14 +6,36 @@
   // OKX Nostr adapter shim: if window.nostr is missing, try mapping OKX provider
   function ensureNostrBridge(){
     try{
-      if (window.nostr && typeof window.nostr.signEvent === 'function' && typeof window.nostr.getPublicKey === 'function'){
+      // If a NIP-07 provider is already present, accept it
+      if (window.nostr && (typeof window.nostr.signEvent === 'function' || typeof window.nostr.getPublicKey === 'function' || typeof window.nostr.enable === 'function')){
         return true;
       }
-      const okx = (window.okxwallet && (window.okxwallet.nostr || window.okxwallet.provider?.nostr || window.okxwallet.providers?.nostr)) || null;
-      if (okx && typeof okx.signEvent === 'function' && typeof okx.getPublicKey === 'function'){
+      // Try to discover an OKX-provided Nostr object in a few common locations
+      const okx = window.okxwallet || window.okxWallet || null;
+      const okxNostr = okx && (okx.nostr || okx.provider?.nostr || okx.providers?.nostr);
+      if (okxNostr){
+        // Map the exposed object directly; some wallets require enable() before methods are available
+        window.nostr = okxNostr;
+        return true;
+      }
+      // Fallback: some OKX builds expose an EIP-1193-like request() API for Nostr methods
+      if (okx && (typeof okx.request === 'function' || okx.provider || okx.providers)){
+        const rq = typeof okx.request === 'function' ? okx.request.bind(okx) : null;
         window.nostr = {
-          getPublicKey: (...args) => okx.getPublicKey(...args),
-          signEvent: (...args) => okx.signEvent(...args),
+          enable: async () => {
+            try { if (typeof okx.enable === 'function') { await okx.enable(); } } catch {}
+            return true;
+          },
+          getPublicKey: async () => {
+            try{ if (okx.nostr && typeof okx.nostr.getPublicKey === 'function') return okx.nostr.getPublicKey(); } catch{}
+            if (rq) return rq({ method: 'nostr_getPublicKey' });
+            throw new Error('nostr_unavailable');
+          },
+          signEvent: async (ev) => {
+            try{ if (okx.nostr && typeof okx.nostr.signEvent === 'function') return okx.nostr.signEvent(ev); } catch{}
+            if (rq) return rq({ method: 'nostr_signEvent', params: ev });
+            throw new Error('nostr_unavailable');
+          },
         };
         return true;
       }
@@ -48,9 +70,12 @@
       if (TB.showToast) TB.showToast('No Nostr extension detected. Install Alby or enable an OKX Nostr provider.', 'error');
       return;
     }
+    const okx = window.okxwallet || window.okxWallet || null;
+    const hasOKX = !!okx;
     area.innerHTML = `
       <div class="nav" style="gap:8px; flex-wrap:wrap">
-        <span class="muted">No Nostr extension detected.</span>
+        <span class="muted">${hasOKX ? 'Detected OKX Wallet, but Nostr provider is not enabled.' : 'No Nostr extension detected.'}</span>
+        ${hasOKX ? '<button id="retry-okx" class="btn">Retry OKX</button>' : ''}
         <a class="nav-link" href="https://getalby.com/" target="_blank" rel="noopener">Install Alby</a>
         <a class="nav-link" href="https://chromewebstore.google.com/search/nostr" target="_blank" rel="noopener">Other extensions</a>
         <button id="demo-login" class="btn">Use Demo Mode</button>
@@ -66,12 +91,27 @@
     document.getElementById('back-login')?.addEventListener('click', async () => {
       render(null);
     });
+    document.getElementById('retry-okx')?.addEventListener('click', async () => {
+      ensureNostrBridge();
+      await login();
+    });
   }
 
   async function login(){
     // Attempt to bridge OKX -> window.nostr if needed
     ensureNostrBridge();
-    if (!window.nostr || !window.nostr.signEvent){
+    // Some providers (including OKX) may require an explicit enable/permission step
+    try{
+      if (window.nostr && typeof window.nostr.enable === 'function'){
+        await window.nostr.enable();
+      }
+    } catch(e){
+      // Permission denied or not supported; continue and let getPublicKey prompt if applicable
+      console.warn('nostr.enable() failed or not supported', e);
+    }
+    // Re-bridge in case enable() populated methods
+    ensureNostrBridge();
+    if (!window.nostr || (typeof window.nostr.getPublicKey !== 'function' && typeof window.nostr.signEvent !== 'function')){
       renderNoExtensionUI();
       return;
     }
@@ -96,7 +136,13 @@
       // Send to server for verification
       const vr = await fetch('/api/auth/nostr/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: signed }) });
       const vj = await vr.json();
-      if (!vr.ok){ throw new Error(vj.error || 'Verify failed'); }
+      if (!vr.ok){
+        const msg = String(vj?.error || 'Verify failed');
+        if (/coincurve/i.test(msg)){
+          if (TB.showToast) TB.showToast('Server missing crypto verification; use Demo Mode locally or install coincurve.', 'error');
+        }
+        throw new Error(msg);
+      }
       if (window.TB?.showToast) TB.showToast('Signed in');
       await load();
       return true;
