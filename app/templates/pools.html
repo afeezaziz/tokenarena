@@ -1,0 +1,591 @@
+{% extends 'base.html' %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "Liquidity Pools",
+  "url": "{{ canonical_url }}",
+  "description": "Browse and join liquidity pools on the Token Arena platform"
+}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Pools Page Interactive Elements
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate numbers on scroll
+    const animateValue = (element, start, end, duration, prefix = '', suffix = '') => {
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            const current = Math.floor(progress * (end - start) + start);
+            element.textContent = prefix + current.toLocaleString() + suffix;
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+        window.requestAnimationFrame(step);
+    };
+
+    // Intersection Observer for animations
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const valueElements = entry.target.querySelectorAll('[data-animate-value]');
+                valueElements.forEach(el => {
+                    const finalValue = parseFloat(el.getAttribute('data-final') || el.textContent);
+                    const prefix = el.getAttribute('data-prefix') || '';
+                    const suffix = el.getAttribute('data-suffix') || '';
+                    el.textContent = '0';
+                    animateValue(el, 0, finalValue, 2000, prefix, suffix);
+                });
+                observer.unobserve(entry.target);
+            }
+        });
+    });
+
+    // Observe stats section
+    document.querySelectorAll('.stats-section').forEach(section => {
+        observer.observe(section);
+    });
+
+    // Filter functionality
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const filterableItems = document.querySelectorAll('.filterable-item');
+
+    filterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const filter = button.getAttribute('data-filter');
+
+            // Update active filter button
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Filter items
+            filterableItems.forEach(item => {
+                if (filter === 'all' || item.getAttribute('data-category') === filter) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    // Sort functionality
+    const sortSelect = document.querySelector('#sort-select');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            const sortBy = sortSelect.value;
+            const container = document.querySelector('.pools-grid');
+            const items = Array.from(container.children);
+
+            items.sort((a, b) => {
+                switch (sortBy) {
+                    case 'tvl':
+                        const tvlA = parseFloat(a.getAttribute('data-tvl')) || 0;
+                        const tvlB = parseFloat(b.getAttribute('data-tvl')) || 0;
+                        return tvlB - tvlA;
+                    case 'apy':
+                        const apyA = parseFloat(a.getAttribute('data-apy')) || 0;
+                        const apyB = parseFloat(b.getAttribute('data-apy')) || 0;
+                        return apyB - apyA;
+                    case 'name':
+                        const nameA = a.getAttribute('data-name') || '';
+                        const nameB = b.getAttribute('data-name') || '';
+                        return nameA.localeCompare(nameB);
+                    case 'volume':
+                        const volumeA = parseFloat(a.getAttribute('data-volume')) || 0;
+                        const volumeB = parseFloat(b.getAttribute('data-volume')) || 0;
+                        return volumeB - volumeA;
+                    default:
+                        return 0;
+                }
+            });
+
+            items.forEach(item => container.appendChild(item));
+        });
+    }
+
+    // Search functionality
+    const searchInput = document.querySelector('#search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const poolCards = document.querySelectorAll('.filterable-item');
+
+            poolCards.forEach(card => {
+                const cardText = card.textContent.toLowerCase();
+                if (cardText.includes(searchTerm)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Pool card hover effects
+    const poolCards = document.querySelectorAll('.pool-card');
+    poolCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-4px)';
+            this.style.boxShadow = '0 10px 25px rgba(147, 51, 234, 0.3)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '';
+        });
+    });
+
+    // Join pool functionality
+    const joinPoolBtns = document.querySelectorAll('.join-pool-btn');
+    joinPoolBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const poolName = this.getAttribute('data-pool-name');
+            const originalText = this.innerHTML;
+
+            this.innerHTML = 'Joining...';
+            this.disabled = true;
+
+            setTimeout(() => {
+                this.innerHTML = '✓ Joined';
+                this.classList.add('bg-green-500');
+
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('bg-green-500');
+                    this.disabled = false;
+                }, 2000);
+            }, 1000);
+        });
+    });
+
+    // APY updates simulation
+    const updateAPYs = () => {
+        const apyElements = document.querySelectorAll('.apy-value');
+        apyElements.forEach(element => {
+            if (element.textContent.includes('%')) {
+                const currentAPY = parseFloat(element.textContent.replace(/[^0-9.-]+/g, ''));
+                if (!isNaN(currentAPY)) {
+                    const change = (Math.random() - 0.5) * 0.5; // ±0.25% change
+                    const newAPY = Math.max(0, currentAPY + change);
+
+                    element.textContent = `${newAPY.toFixed(2)}%`;
+
+                    // Add visual feedback for APY changes
+                    element.classList.add(change > 0 ? 'text-green-400' : 'text-red-400');
+                    setTimeout(() => {
+                        element.classList.remove('text-green-400', 'text-red-400');
+                    }, 1000);
+                }
+            }
+        });
+    };
+
+    // Update APYs every 15 seconds
+    setInterval(updateAPYs, 15000);
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<!-- Pools Header -->
+<section class="pools-header py-8 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/20">
+    <div class="px-8">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+                <h1 class="text-4xl font-bold mb-2">Liquidity Pools</h1>
+                <p class="text-gray-400">Earn rewards by providing liquidity to Token Arena pools</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/pools/demo" class="btn btn-outline">
+                    View Demo Pool
+                </a>
+                <button class="btn btn-primary">
+                    Create Pool 💧
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pool Stats -->
+<section class="stats-section py-8">
+    <div class="px-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="stat-card bg-gradient-to-br from-purple-900/20 to-purple-800/20 border border-purple-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">💧</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+15.3%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-purple-300 mb-1" data-animate-value data-final="893456789" data-prefix="$" data-suffix="">$0</div>
+                <div class="text-gray-400 text-sm">Total TVL</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-blue-900/20 to-blue-800/20 border border-blue-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">🏊</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+8.7%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-blue-300 mb-1" data-animate-value data-final="1247" data-suffix="">0</div>
+                <div class="text-gray-400 text-sm">Active Pools</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-green-900/20 to-green-800/20 border border-green-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">💰</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+45.2%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-green-300 mb-1" data-animate-value data-final="156789012" data-prefix="$" data-suffix="">$0</div>
+                <div class="text-gray-400 text-sm">24h Volume</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-yellow-900/20 to-yellow-800/20 border border-yellow-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">📈</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+12.8%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-yellow-300 mb-1" data-animate-value data-final="67.8" data-suffix="%">0%</div>
+                <div class="text-gray-400 text-sm">Avg APY</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Filters and Search -->
+<section class="py-6 border-b border-gray-800">
+    <div class="px-8">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400">Filter:</span>
+                    <button class="filter-btn active px-4 py-2 rounded-lg bg-purple-500/20 text-purple-300 text-sm" data-filter="all">
+                        All Pools
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600" data-filter="stable">
+                        Stable
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600" data-filter="volatile">
+                        Volatile
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600" data-filter="new">
+                        New
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="Search pools..." class="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500">
+                    <svg class="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+
+                <select id="sort-select" class="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                    <option value="tvl">Sort by TVL</option>
+                    <option value="apy">Sort by APY</option>
+                    <option value="name">Sort by Name</option>
+                    <option value="volume">Sort by Volume</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pools Grid -->
+<section class="py-8">
+    <div class="px-8">
+        <div class="pools-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Pool Card 1 - BTC/ETH -->
+            <div class="filterable-item pool-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="stable" data-tvl="125000000" data-apy="45.8" data-name="BTC/ETH" data-volume="23456789">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex -space-x-2">
+                            <div class="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🟠</div>
+                            <div class="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🔵</div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">BTC / ETH</h3>
+                            <p class="text-gray-400 text-sm">Bitcoin / Ethereum</p>
+                        </div>
+                    </div>
+                    <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded-lg text-sm font-semibold">45.8% APY</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">TVL</p>
+                        <p class="text-xl font-semibold text-purple-300">$125.0M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">24h Volume</p>
+                        <p class="text-xl font-semibold text-blue-300">$23.5M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Your Share</p>
+                        <p class="text-xl font-semibold text-green-300">0.00%</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Fees</p>
+                        <p class="text-xl font-semibold text-yellow-300">0.25%</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/pools/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="join-pool-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-pool-name="BTC/ETH">
+                        Join Pool
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pool Card 2 - SOL/USDC -->
+            <div class="filterable-item pool-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="stable" data-tvl="89000000" data-apy="32.4" data-name="SOL/USDC" data-volume="12345678">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex -space-x-2">
+                            <div class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🟢</div>
+                            <div class="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">💙</div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">SOL / USDC</h3>
+                            <p class="text-gray-400 text-sm">Solana / USD Coin</p>
+                        </div>
+                    </div>
+                    <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded-lg text-sm font-semibold">32.4% APY</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">TVL</p>
+                        <p class="text-xl font-semibold text-purple-300">$89.0M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">24h Volume</p>
+                        <p class="text-xl font-semibold text-blue-300">$12.3M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Your Share</p>
+                        <p class="text-xl font-semibold text-green-300">0.00%</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Fees</p>
+                        <p class="text-xl font-semibold text-yellow-300">0.30%</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/pools/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="join-pool-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-pool-name="SOL/USDC">
+                        Join Pool
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pool Card 3 - ARENA/ETH -->
+            <div class="filterable-item pool-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="volatile" data-tvl="45000000" data-apy="156.7" data-name="ARENA/ETH" data-volume="5678901">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex -space-x-2">
+                            <div class="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🏆</div>
+                            <div class="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🔵</div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">ARENA / ETH</h3>
+                            <p class="text-gray-400 text-sm">Arena Token / Ethereum</p>
+                        </div>
+                    </div>
+                    <span class="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-lg text-sm font-semibold">156.7% APY</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">TVL</p>
+                        <p class="text-xl font-semibold text-purple-300">$45.0M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">24h Volume</p>
+                        <p class="text-xl font-semibold text-blue-300">$5.7M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Your Share</p>
+                        <p class="text-xl font-semibold text-green-300">0.00%</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Fees</p>
+                        <p class="text-xl font-semibold text-yellow-300">0.25%</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/pools/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="join-pool-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-pool-name="ARENA/ETH">
+                        Join Pool
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pool Card 4 - MATIC/USDT -->
+            <div class="filterable-item pool-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="stable" data-tvl="67000000" data-apy="28.9" data-name="MATIC/USDT" data-volume="8901234">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex -space-x-2">
+                            <div class="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🟣</div>
+                            <div class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">💚</div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">MATIC / USDT</h3>
+                            <p class="text-gray-400 text-sm">Polygon / Tether</p>
+                        </div>
+                    </div>
+                    <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded-lg text-sm font-semibold">28.9% APY</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">TVL</p>
+                        <p class="text-xl font-semibold text-purple-300">$67.0M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">24h Volume</p>
+                        <p class="text-xl font-semibold text-blue-300">$8.9M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Your Share</p>
+                        <p class="text-xl font-semibold text-green-300">0.00%</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Fees</p>
+                        <p class="text-xl font-semibold text-yellow-300">0.30%</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/pools/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="join-pool-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-pool-name="MATIC/USDT">
+                        Join Pool
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pool Card 5 - AVAX/BTC -->
+            <div class="filterable-item pool-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="volatile" data-tvl="34000000" data-apy="89.3" data-name="AVAX/BTC" data-volume="4567890">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex -space-x-2">
+                            <div class="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🔴</div>
+                            <div class="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">🟠</div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">AVAX / BTC</h3>
+                            <p class="text-gray-400 text-sm">Avalanche / Bitcoin</p>
+                        </div>
+                    </div>
+                    <span class="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-lg text-sm font-semibold">89.3% APY</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">TVL</p>
+                        <p class="text-xl font-semibold text-purple-300">$34.0M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">24h Volume</p>
+                        <p class="text-xl font-semibold text-blue-300">$4.6M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Your Share</p>
+                        <p class="text-xl font-semibold text-green-300">0.00%</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Fees</p>
+                        <p class="text-xl font-semibold text-yellow-300">0.25%</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/pools/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="join-pool-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-pool-name="AVAX/BTC">
+                        Join Pool
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pool Card 6 - USDC/USDT -->
+            <div class="filterable-item pool-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="stable" data-tvl="234000000" data-apy="12.5" data-name="USDC/USDT" data-volume="34567890">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex -space-x-2">
+                            <div class="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">💙</div>
+                            <div class="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center text-lg border-2 border-gray-800">💚</div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">USDC / USDT</h3>
+                            <p class="text-gray-400 text-sm">USD Coin / Tether</p>
+                        </div>
+                    </div>
+                    <span class="bg-green-500/20 text-green-300 px-2 py-1 rounded-lg text-sm font-semibold">12.5% APY</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">TVL</p>
+                        <p class="text-xl font-semibold text-purple-300">$234.0M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">24h Volume</p>
+                        <p class="text-xl font-semibold text-blue-300">$34.6M</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Your Share</p>
+                        <p class="text-xl font-semibold text-green-300">0.00%</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm mb-1">Fees</p>
+                        <p class="text-xl font-semibold text-yellow-300">0.04%</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/pools/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="join-pool-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-pool-name="USDC/USDT">
+                        Join Pool
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Load More -->
+        <div class="text-center mt-12">
+            <button class="px-8 py-3 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-purple-300 font-medium transition-all duration-200">
+                Load More Pools
+            </button>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,6 +1,6 @@
 {% set title = title or 'Token Arena' %}
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -27,10 +27,8 @@
     <link rel="preconnect" href="https://picsum.photos" crossorigin>
     <meta name="robots" content="{{ ROBOTS_DIRECTIVE }}" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="preload" href="{{ url_for('static', filename='css/main.css') }}?v={{ STATIC_VERSION }}" as="style" />
-    <link rel="preload" href="{{ url_for('static', filename='css/arena.css') }}?v={{ STATIC_VERSION }}" as="style" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}?v={{ STATIC_VERSION }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/arena.css') }}?v={{ STATIC_VERSION }}" />
+    <link rel="preload" href="{{ url_for('static', filename='css/dist/tailwind.css') }}?v={{ STATIC_VERSION }}" as="style" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dist/tailwind.css') }}?v={{ STATIC_VERSION }}" />
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}?v={{ STATIC_VERSION }}" />
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     {% if ANALYTICS_PLAUSIBLE_DOMAIN %}
@@ -65,27 +63,33 @@
   <body class="arena" id="top">
   <a href="#main-content" class="skip-link">Skip to content</a>
   <header class="site-header">
-    <div class="container header-inner">
+    <div class="header-inner">
       <a href="/" class="brand" aria-label="Token Arena home">⚔️ Token Arena</a>
       <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobile-nav">☰</button>
       <nav class="nav" aria-label="Primary">
         <a href="/arena" class="nav-link">Arena</a>
         <a href="/launchpad" class="nav-link">Launchpad</a>
+        <a href="/rgb20" class="nav-link">Asset Registry</a>
+        <a href="/pools" class="nav-link">Pools</a>
+        <a href="/rewards" class="nav-link">Rewards</a>
       </nav>
-      <a href="/dashboard" class="btn btn-cta dashboard-btn" role="button"><span class="label">Dashboard</span> <span class="arrow" aria-hidden="true">→</span></a>
+      <a href="/dashboard" class="btn btn-cta dashboard-btn"><span class="label">Dashboard</span> <span class="arrow" aria-hidden="true">→</span></a>
     </div>
     <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile">
-      <div class="container">
+      <div>
         <div class="mobile-nav-links">
           <a href="/arena" class="nav-link">Arena</a>
           <a href="/launchpad" class="nav-link">Launchpad</a>
+          <a href="/rgb20" class="nav-link">Asset Registry</a>
+          <a href="/pools" class="nav-link">Pools</a>
+          <a href="/rewards" class="nav-link">Rewards</a>
         </div>
-        <a href="/dashboard" class="btn btn-cta dashboard-btn" role="button" style="margin:8px 0 12px; display:inline-block"><span class="label">Dashboard</span> <span class="arrow" aria-hidden="true">→</span></a>
+        <a href="/dashboard" class="btn btn-cta dashboard-btn" style="margin:8px 0 12px; display:inline-block"><span class="label">Dashboard</span> <span class="arrow" aria-hidden="true">→</span></a>
       </div>
     </nav>
   </header>
 
-  <main id="main-content" class="container">
+  <main id="main-content">
     {% block content %}{% endblock %}
   </main>
 
@@ -99,7 +103,6 @@
   <script defer src="{{ url_for('static', filename='js/search.js') }}?v={{ STATIC_VERSION }}"></script>
   <script defer src="{{ url_for('static', filename='js/ui.js') }}?v={{ STATIC_VERSION }}"></script>
   <script defer src="{{ url_for('static', filename='js/auth.js') }}?v={{ STATIC_VERSION }}"></script>
-  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
   {% block scripts %}{% endblock %}
 </body>
 </html>

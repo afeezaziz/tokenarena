@@ -2,7 +2,7 @@
 __pycache__/
 *.py[oc]
 build/
-dist/
+/dist/
 wheels/
 *.egg-info
 
@@ -12,3 +12,4 @@ wheels/
 # Local environment and DB
 .env
 token_battles.db
+node_modules

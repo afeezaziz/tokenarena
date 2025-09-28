@@ -201,6 +201,56 @@ def launchpad_page():
     )
 
 
+@ui_bp.route("/rgb20")
+def rgb20_page():
+    # RGB20 tokens list page
+    return render_template(
+        "rgb20.html",
+        title="Asset Registry · Token Arena",
+        description="Browse and manage RGB20 tokens on the Token Arena platform",
+    )
+
+
+@ui_bp.route("/rgb20/<asset_id>")
+def rgb20_detail_page(asset_id: str):
+    # RGB20 token detail page
+    return render_template(
+        "rgb20_demo.html",
+        title=f"Asset {asset_id} · Token Arena",
+        description=f"Detailed information for RGB20 asset {asset_id}",
+    )
+
+
+@ui_bp.route("/pools")
+def pools_page():
+    # Pools list page
+    return render_template(
+        "pools.html",
+        title="Liquidity Pools · Token Arena",
+        description="Browse and join liquidity pools on the Token Arena platform",
+    )
+
+
+@ui_bp.route("/pools/<pool_id>")
+def pools_detail_page(pool_id: str):
+    # Pool detail page
+    return render_template(
+        "pools_demo.html",
+        title=f"Pool {pool_id} · Token Arena",
+        description=f"Detailed information for liquidity pool {pool_id}",
+    )
+
+
+@ui_bp.route("/rewards")
+def rewards_page():
+    # Rewards page
+    return render_template(
+        "rewards.html",
+        title="Rewards · Token Arena",
+        description="Earn rewards and incentives through Token Arena staking, battles, and achievements",
+    )
+
+
 @ui_bp.route("/admin")
 def admin_page():
     # Basic admin UI (data fetched via /api/admin/* endpoints)

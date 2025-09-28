@@ -1,0 +1,15 @@
+{
+  "name": "tokenarena-website",
+  "version": "1.0.0",
+  "description": "Token Arena website with Flask and DaisyUI",
+  "scripts": {
+    "dev": "tailwindcss -i ./app/static/css/src/input.css -o ./app/static/css/dist/tailwind.css --watch",
+    "build": "tailwindcss -i ./app/static/css/src/input.css -o ./app/static/css/dist/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "daisyui": "^4.12.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32"
+  }
+}

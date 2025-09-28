@@ -1,0 +1,570 @@
+{% extends 'base.html' %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "RGB20 Tokens",
+  "url": "{{ canonical_url }}",
+  "description": "Browse and manage RGB20 tokens on the Token Arena platform"
+}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// RGB20 Tokens Page Interactive Elements
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate numbers on scroll
+    const animateValue = (element, start, end, duration, prefix = '', suffix = '') => {
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            const current = Math.floor(progress * (end - start) + start);
+            element.textContent = prefix + current.toLocaleString() + suffix;
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+        window.requestAnimationFrame(step);
+    };
+
+    // Intersection Observer for animations
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const valueElements = entry.target.querySelectorAll('[data-animate-value]');
+                valueElements.forEach(el => {
+                    const finalValue = parseFloat(el.getAttribute('data-final') || el.textContent);
+                    const prefix = el.getAttribute('data-prefix') || '';
+                    const suffix = el.getAttribute('data-suffix') || '';
+                    el.textContent = '0';
+                    animateValue(el, 0, finalValue, 2000, prefix, suffix);
+                });
+                observer.unobserve(entry.target);
+            }
+        });
+    });
+
+    // Observe stats section
+    document.querySelectorAll('.stats-section').forEach(section => {
+        observer.observe(section);
+    });
+
+    // Filter functionality
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const filterableItems = document.querySelectorAll('.filterable-item');
+
+    filterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const filter = button.getAttribute('data-filter');
+
+            // Update active filter button
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Filter items
+            filterableItems.forEach(item => {
+                if (filter === 'all' || item.getAttribute('data-category') === filter) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    // Sort functionality
+    const sortSelect = document.querySelector('#sort-select');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            const sortBy = sortSelect.value;
+            const container = document.querySelector('.tokens-grid');
+            const items = Array.from(container.children);
+
+            items.sort((a, b) => {
+                switch (sortBy) {
+                    case 'market-cap':
+                        const marketCapA = parseFloat(a.getAttribute('data-market-cap')) || 0;
+                        const marketCapB = parseFloat(b.getAttribute('data-market-cap')) || 0;
+                        return marketCapB - marketCapA;
+                    case 'price':
+                        const priceA = parseFloat(a.getAttribute('data-price')) || 0;
+                        const priceB = parseFloat(b.getAttribute('data-price')) || 0;
+                        return priceB - priceA;
+                    case 'name':
+                        const nameA = a.getAttribute('data-name') || '';
+                        const nameB = b.getAttribute('data-name') || '';
+                        return nameA.localeCompare(nameB);
+                    case 'change':
+                        const changeA = parseFloat(a.getAttribute('data-change')) || 0;
+                        const changeB = parseFloat(b.getAttribute('data-change')) || 0;
+                        return changeB - changeA;
+                    default:
+                        return 0;
+                }
+            });
+
+            items.forEach(item => container.appendChild(item));
+        });
+    }
+
+    // Search functionality
+    const searchInput = document.querySelector('#search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const tokenCards = document.querySelectorAll('.filterable-item');
+
+            tokenCards.forEach(card => {
+                const cardText = card.textContent.toLowerCase();
+                if (cardText.includes(searchTerm)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Token card hover effects
+    const tokenCards = document.querySelectorAll('.token-card');
+    tokenCards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-4px)';
+            this.style.boxShadow = '0 10px 25px rgba(147, 51, 234, 0.3)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '';
+        });
+    });
+
+    // Add to portfolio functionality
+    const addToPortfolioBtns = document.querySelectorAll('.add-to-portfolio-btn');
+    addToPortfolioBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tokenName = this.getAttribute('data-token-name');
+            const originalText = this.innerHTML;
+
+            this.innerHTML = '✓ Added';
+            this.classList.add('bg-green-500');
+
+            setTimeout(() => {
+                this.innerHTML = originalText;
+                this.classList.remove('bg-green-500');
+            }, 2000);
+        });
+    });
+
+    // Price updates simulation
+    const updatePrices = () => {
+        const priceElements = document.querySelectorAll('.price-value');
+        priceElements.forEach(element => {
+            if (element.textContent.includes('$')) {
+                const currentPrice = parseFloat(element.textContent.replace(/[^0-9.-]+/g, ''));
+                if (!isNaN(currentPrice)) {
+                    const change = (Math.random() - 0.5) * 0.01; // ±0.5% change
+                    const newPrice = currentPrice * (1 + change);
+
+                    element.textContent = `$${newPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                    // Add visual feedback for price changes
+                    element.classList.add(change > 0 ? 'text-green-400' : 'text-red-400');
+                    setTimeout(() => {
+                        element.classList.remove('text-green-400', 'text-red-400');
+                    }, 1000);
+                }
+            }
+        });
+    };
+
+    // Update prices every 10 seconds
+    setInterval(updatePrices, 10000);
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<!-- RGB20 Header -->
+<section class="rgb20-header py-8 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/20">
+    <div class="px-8">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+                <h1 class="text-4xl font-bold mb-2">RGB20 Tokens</h1>
+                <p class="text-gray-400">Explore and trade RGB20 tokens on the Token Arena platform</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="/rgb20/demo" class="btn btn-outline">
+                    View Demo Token
+                </a>
+                <a href="/arena" class="btn btn-primary">
+                    Trade Tokens ⚔️
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Market Stats -->
+<section class="stats-section py-8">
+    <div class="px-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="stat-card bg-gradient-to-br from-purple-900/20 to-purple-800/20 border border-purple-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">🪙</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+8.2%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-purple-300 mb-1" data-animate-value data-final="1247" data-suffix="">0</div>
+                <div class="text-gray-400 text-sm">Total Tokens</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-blue-900/20 to-blue-800/20 border border-blue-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">💰</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+12.5%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-blue-300 mb-1" data-animate-value data-final="456789123" data-prefix="$" data-suffix="">$0</div>
+                <div class="text-gray-400 text-sm">Total Market Cap</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-green-900/20 to-green-800/20 border border-green-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">📊</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+5.7%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-green-300 mb-1" data-animate-value data-final="89345678" data-prefix="$" data-suffix="">$0</div>
+                <div class="text-gray-400 text-sm">24h Volume</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-yellow-900/20 to-yellow-800/20 border border-yellow-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">🔥</span>
+                    </div>
+                    <span class="text-red-400 text-sm">-2.3%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-yellow-300 mb-1" data-animate-value data-final="345678" data-suffix="">0</div>
+                <div class="text-gray-400 text-sm">Active Traders</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Filters and Search -->
+<section class="py-6 border-b border-gray-800">
+    <div class="px-8">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400">Filter:</span>
+                    <button class="filter-btn active px-4 py-2 rounded-lg bg-purple-500/20 text-purple-300 text-sm" data-filter="all">
+                        All Tokens
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600" data-filter="defi">
+                        DeFi
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600" data-filter="gaming">
+                        Gaming
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600" data-filter="utility">
+                        Utility
+                    </button>
+                    <button class="filter-btn px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600" data-filter="nft">
+                        NFT
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="Search tokens..." class="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500">
+                    <svg class="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+
+                <select id="sort-select" class="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                    <option value="market-cap">Sort by Market Cap</option>
+                    <option value="price">Sort by Price</option>
+                    <option value="name">Sort by Name</option>
+                    <option value="change">Sort by Change</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Tokens Grid -->
+<section class="py-8">
+    <div class="px-8">
+        <div class="tokens-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Token Card 1 - Bitcoin RGB -->
+            <div class="filterable-item token-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="defi" data-market-cap="45000000000" data-price="45678.32" data-name="Bitcoin RGB" data-change="5.2">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center text-xl">🟠</div>
+                        <div>
+                            <h3 class="font-bold text-lg">Bitcoin RGB</h3>
+                            <p class="text-gray-400 text-sm">BTC-RGB</p>
+                        </div>
+                    </div>
+                    <span class="text-green-400 text-sm">+5.2%</span>
+                </div>
+
+                <div class="space-y-3 mb-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Price:</span>
+                        <span class="price-value font-semibold text-purple-300">$45,678.32</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Market Cap:</span>
+                        <span class="font-semibold">$45.0B</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span class="font-semibold">$1.2B</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Supply:</span>
+                        <span class="font-semibold">21M</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/rgb20/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="add-to-portfolio-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-token-name="Bitcoin RGB">
+                        Add to Portfolio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Token Card 2 - Ethereum RGB -->
+            <div class="filterable-item token-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="defi" data-market-cap="28000000000" data-price="2845.67" data-name="Ethereum RGB" data-change="-1.8">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center text-xl">🔵</div>
+                        <div>
+                            <h3 class="font-bold text-lg">Ethereum RGB</h3>
+                            <p class="text-gray-400 text-sm">ETH-RGB</p>
+                        </div>
+                    </div>
+                    <span class="text-red-400 text-sm">-1.8%</span>
+                </div>
+
+                <div class="space-y-3 mb-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Price:</span>
+                        <span class="price-value font-semibold text-purple-300">$2,845.67</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Market Cap:</span>
+                        <span class="font-semibold">$28.0B</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span class="font-semibold">$856M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Supply:</span>
+                        <span class="font-semibold">120M</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/rgb20/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="add-to-portfolio-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-token-name="Ethereum RGB">
+                        Add to Portfolio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Token Card 3 - Solana RGB -->
+            <div class="filterable-item token-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="defi" data-market-cap="12500000000" data-price="156.78" data-name="Solana RGB" data-change="12.3">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center text-xl">🟢</div>
+                        <div>
+                            <h3 class="font-bold text-lg">Solana RGB</h3>
+                            <p class="text-gray-400 text-sm">SOL-RGB</p>
+                        </div>
+                    </div>
+                    <span class="text-green-400 text-sm">+12.3%</span>
+                </div>
+
+                <div class="space-y-3 mb-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Price:</span>
+                        <span class="price-value font-semibold text-purple-300">$156.78</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Market Cap:</span>
+                        <span class="font-semibold">$12.5B</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span class="font-semibold">$234M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Supply:</span>
+                        <span class="font-semibold">511M</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/rgb20/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="add-to-portfolio-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-token-name="Solana RGB">
+                        Add to Portfolio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Token Card 4 - Arena Token -->
+            <div class="filterable-item token-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="gaming" data-market-cap="850000000" data-price="0.85" data-name="Arena Token" data-change="8.7">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center text-xl">🏆</div>
+                        <div>
+                            <h3 class="font-bold text-lg">Arena Token</h3>
+                            <p class="text-gray-400 text-sm">ARENA</p>
+                        </div>
+                    </div>
+                    <span class="text-green-400 text-sm">+8.7%</span>
+                </div>
+
+                <div class="space-y-3 mb-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Price:</span>
+                        <span class="price-value font-semibold text-purple-300">$0.85</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Market Cap:</span>
+                        <span class="font-semibold">$850M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span class="font-semibold">$45M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Supply:</span>
+                        <span class="font-semibold">1B</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/rgb20/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="add-to-portfolio-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-token-name="Arena Token">
+                        Add to Portfolio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Token Card 5 - Battle Pass -->
+            <div class="filterable-item token-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="gaming" data-market-cap="120000000" data-price="12.50" data-name="Battle Pass" data-change="3.2">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center text-xl">🔴</div>
+                        <div>
+                            <h3 class="font-bold text-lg">Battle Pass</h3>
+                            <p class="text-gray-400 text-sm">PASS</p>
+                        </div>
+                    </div>
+                    <span class="text-green-400 text-sm">+3.2%</span>
+                </div>
+
+                <div class="space-y-3 mb-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Price:</span>
+                        <span class="price-value font-semibold text-purple-300">$12.50</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Market Cap:</span>
+                        <span class="font-semibold">$120M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span class="font-semibold">$8.5M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Supply:</span>
+                        <span class="font-semibold">10M</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/rgb20/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="add-to-portfolio-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-token-name="Battle Pass">
+                        Add to Portfolio
+                    </button>
+                </div>
+            </div>
+
+            <!-- Token Card 6 - NFT Index -->
+            <div class="filterable-item token-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300" data-category="nft" data-market-cap="230000000" data-price="2.30" data-name="NFT Index" data-change="-0.8">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center text-xl">🟡</div>
+                        <div>
+                            <h3 class="font-bold text-lg">NFT Index</h3>
+                            <p class="text-gray-400 text-sm">NFTI</p>
+                        </div>
+                    </div>
+                    <span class="text-red-400 text-sm">-0.8%</span>
+                </div>
+
+                <div class="space-y-3 mb-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Price:</span>
+                        <span class="price-value font-semibold text-purple-300">$2.30</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Market Cap:</span>
+                        <span class="font-semibold">$230M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">24h Volume:</span>
+                        <span class="font-semibold">$12M</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400">Supply:</span>
+                        <span class="font-semibold">100M</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <a href="/rgb20/demo" class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors text-center">
+                        View Details
+                    </a>
+                    <button class="add-to-portfolio-btn flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors" data-token-name="NFT Index">
+                        Add to Portfolio
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Load More -->
+        <div class="text-center mt-12">
+            <button class="px-8 py-3 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-purple-300 font-medium transition-all duration-200">
+                Load More Tokens
+            </button>
+        </div>
+    </div>
+</section>
+{% endblock %}

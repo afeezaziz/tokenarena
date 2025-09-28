@@ -44,6 +44,8 @@ class Config:
     )
     STATIC_VERSION = os.getenv("STATIC_VERSION", "1")
     STATIC_CACHE_SECONDS = int(os.getenv("STATIC_CACHE_SECONDS", "86400"))
+    # Static serving helper (optional)
+    USE_WHITENOISE = os.getenv("USE_WHITENOISE", "0") == "1"
 
     # Analytics
     ANALYTICS_PLAUSIBLE_DOMAIN = os.getenv("ANALYTICS_PLAUSIBLE_DOMAIN")  # e.g., tokenarena.example

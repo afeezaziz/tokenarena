@@ -1,0 +1,839 @@
+{% extends 'base.html' %}
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Rewards",
+  "url": "{{ canonical_url }}",
+  "description": "Earn rewards and incentives through Token Arena staking, battles, and achievements"
+}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Rewards Page Interactive Elements
+document.addEventListener('DOMContentLoaded', function() {
+    // Animate numbers on scroll
+    const animateValue = (element, start, end, duration, prefix = '', suffix = '') => {
+        let startTimestamp = null;
+        const step = (timestamp) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            const current = Math.floor(progress * (end - start) + start);
+            element.textContent = prefix + current.toLocaleString() + suffix;
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+        window.requestAnimationFrame(step);
+    };
+
+    // Intersection Observer for animations
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const valueElements = entry.target.querySelectorAll('[data-animate-value]');
+                valueElements.forEach(el => {
+                    const finalValue = parseFloat(el.getAttribute('data-final') || el.textContent);
+                    const prefix = el.getAttribute('data-prefix') || '';
+                    const suffix = el.getAttribute('data-suffix') || '';
+                    el.textContent = '0';
+                    animateValue(el, 0, finalValue, 2000, prefix, suffix);
+                });
+                observer.unobserve(entry.target);
+            }
+        });
+    });
+
+    // Observe sections with animations
+    document.querySelectorAll('.stats-section, .rewards-section').forEach(section => {
+        observer.observe(section);
+    });
+
+    // Tab functionality
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetTab = button.getAttribute('data-tab');
+
+            // Update active states
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            button.classList.add('active');
+            document.getElementById(targetTab).classList.add('active');
+        });
+    });
+
+    // Claim reward functionality
+    const claimRewardBtns = document.querySelectorAll('.claim-reward-btn');
+    claimRewardBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const rewardType = this.getAttribute('data-reward-type');
+            const amount = this.getAttribute('data-amount');
+            const originalText = this.innerHTML;
+
+            this.innerHTML = 'Claiming...';
+            this.disabled = true;
+
+            setTimeout(() => {
+                this.innerHTML = `✓ Claimed ${amount}`;
+                this.classList.add('bg-green-500');
+
+                // Show success notification
+                showNotification(`Successfully claimed ${amount} ${rewardType}!`, 'success');
+
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('bg-green-500');
+                    this.disabled = false;
+                }, 3000);
+            }, 2000);
+        });
+    });
+
+    // Stake/Unstake functionality
+    const stakeButtons = document.querySelectorAll('.stake-btn');
+    stakeButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const action = this.getAttribute('data-action');
+            const amountInput = document.getElementById(`${action}-amount`);
+            const amount = amountInput.value;
+
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+
+            const originalText = this.innerHTML;
+            this.innerHTML = 'Processing...';
+            this.disabled = true;
+
+            setTimeout(() => {
+                this.innerHTML = `✓ ${action.charAt(0).toUpperCase() + action.slice(1)}ed Successfully`;
+                this.classList.add('bg-green-500');
+
+                showNotification(`Successfully ${action}ed ${amount} ARENA tokens!`, 'success');
+
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('bg-green-500');
+                    this.disabled = false;
+                    amountInput.value = '';
+                }, 3000);
+            }, 2000);
+        });
+    });
+
+    // Achievement unlock functionality
+    const unlockAchievementBtns = document.querySelectorAll('.unlock-achievement-btn');
+    unlockAchievementBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const achievementId = this.getAttribute('data-achievement-id');
+            const originalText = this.innerHTML;
+
+            this.innerHTML = 'Unlocking...';
+            this.disabled = true;
+
+            setTimeout(() => {
+                this.innerHTML = '✓ Unlocked!';
+                this.classList.add('bg-green-500');
+                this.textContent = '🏆 Unlocked';
+
+                showNotification('Achievement unlocked! +500 Arena Points', 'success');
+
+                setTimeout(() => {
+                    this.classList.remove('bg-green-500');
+                    this.disabled = false;
+                }, 3000);
+            }, 1500);
+        });
+    });
+
+    // Copy referral code
+    const copyReferralBtn = document.querySelector('#copy-referral-btn');
+    if (copyReferralBtn) {
+        copyReferralBtn.addEventListener('click', async () => {
+            const referralCode = 'ARENA2024';
+            try {
+                await navigator.clipboard.writeText(referralCode);
+                const originalText = copyReferralBtn.innerHTML;
+                copyReferralBtn.innerHTML = '✓ Copied!';
+                copyReferralBtn.classList.add('text-green-400');
+                showNotification('Referral code copied to clipboard!', 'success');
+                setTimeout(() => {
+                    copyReferralBtn.innerHTML = originalText;
+                    copyReferralBtn.classList.remove('text-green-400');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy referral code: ', err);
+            }
+        });
+    }
+
+    // Quick amount buttons
+    const quickAmountBtns = document.querySelectorAll('.quick-amount-btn');
+    quickAmountBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const amount = this.getAttribute('data-amount');
+            const targetInput = this.getAttribute('data-target');
+            document.getElementById(targetInput).value = amount;
+        });
+    });
+
+    // Progress bar animations
+    const animateProgressBars = () => {
+        const progressBars = document.querySelectorAll('.progress-bar');
+        progressBars.forEach(bar => {
+            const targetWidth = bar.getAttribute('data-progress');
+            if (targetWidth) {
+                setTimeout(() => {
+                    bar.style.width = targetWidth;
+                }, 500);
+            }
+        });
+    };
+
+    // Start progress bar animations when page loads
+    setTimeout(animateProgressBars, 1000);
+
+    // Notification system
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg text-white font-medium z-50 transform transition-all duration-300 translate-x-full`;
+
+        if (type === 'success') {
+            notification.classList.add('bg-green-500');
+        } else if (type === 'error') {
+            notification.classList.add('bg-red-500');
+        } else {
+            notification.classList.add('bg-blue-500');
+        }
+
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        // Animate in
+        setTimeout(() => {
+            notification.classList.remove('translate-x-full');
+        }, 100);
+
+        // Animate out and remove
+        setTimeout(() => {
+            notification.classList.add('translate-x-full');
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 3000);
+    }
+
+    // Real-time rewards counter
+    const updateRewardsCounter = () => {
+        const counterElement = document.querySelector('.rewards-counter');
+        if (counterElement) {
+            const currentValue = parseFloat(counterElement.textContent.replace(/[^0-9.-]+/g, ''));
+            const increment = Math.random() * 0.1; // Small random increment
+            const newValue = currentValue + increment;
+
+            counterElement.textContent = newValue.toFixed(2);
+
+            // Add visual feedback
+            counterElement.classList.add('text-green-400');
+            setTimeout(() => {
+                counterElement.classList.remove('text-green-400');
+            }, 1000);
+        }
+    };
+
+    // Update rewards counter every 5 seconds
+    setInterval(updateRewardsCounter, 5000);
+});
+</script>
+{% endblock %}
+
+{% block content %}
+<!-- Rewards Header -->
+<section class="rewards-header py-8 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/20">
+    <div class="px-8">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+                <h1 class="text-4xl font-bold mb-2">Rewards & Incentives</h1>
+                <p class="text-gray-400">Earn ARENA tokens and exclusive rewards through staking, battles, and achievements</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right">
+                    <div class="text-sm text-gray-400">Your Total Rewards</div>
+                    <div class="rewards-counter text-2xl font-bold text-green-400">2,456.78 ARENA</div>
+                </div>
+                <button class="btn btn-primary">
+                    Claim All Rewards 💰
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Rewards Overview -->
+<section class="stats-section py-8">
+    <div class="px-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="stat-card bg-gradient-to-br from-purple-900/20 to-purple-800/20 border border-purple-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">💎</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+12.5%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-purple-300 mb-1" data-animate-value data-final="89345678" data-suffix="">0</div>
+                <div class="text-gray-400 text-sm">Total ARENA Distributed</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-green-900/20 to-green-800/20 border border-green-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">👥</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+8.3%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-green-300 mb-1" data-animate-value data-final="45678" data-suffix="">0</div>
+                <div class="text-gray-400 text-sm">Active Reward Earners</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-blue-900/20 to-blue-800/20 border border-blue-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">🏆</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+15.7%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-blue-300 mb-1" data-animate-value data-final="1234567" data-suffix="">0</div>
+                <div class="text-gray-400 text-sm">Achievements Unlocked</div>
+            </div>
+
+            <div class="stat-card bg-gradient-to-br from-yellow-900/20 to-yellow-800/20 border border-yellow-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">🎯</span>
+                    </div>
+                    <span class="text-green-400 text-sm">+23.4%</span>
+                </div>
+                <div class="stat-value text-3xl font-bold text-yellow-300 mb-1" data-animate-value data-final="98.7" data-suffix="%">0%</div>
+                <div class="text-gray-400 text-sm">Reward Claim Rate</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Rewards Tabs -->
+<section class="py-8 border-b border-gray-800">
+    <div class="px-8">
+        <div class="flex items-center gap-6 mb-6 border-b border-gray-700">
+            <button class="tab-btn active px-6 py-3 font-semibold border-b-2 border-purple-500 text-purple-300" data-tab="staking">
+                Staking Rewards
+            </button>
+            <button class="tab-btn px-6 py-3 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-300" data-tab="battles">
+                Battle Rewards
+            </button>
+            <button class="tab-btn px-6 py-3 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-300" data-tab="achievements">
+                Achievements
+            </button>
+            <button class="tab-btn px-6 py-3 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-300" data-tab="referral">
+                Referral Program
+            </button>
+        </div>
+
+        <!-- Staking Rewards Tab -->
+        <div id="staking" class="tab-content active">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Staking Interface -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold mb-4">Stake ARENA Tokens</h3>
+
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-sm text-gray-400">Amount to Stake</label>
+                                <span class="text-sm text-gray-400">Balance: 1,234.56 ARENA</span>
+                            </div>
+                            <input type="number" id="stake-amount" placeholder="0.00" class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                            <div class="flex gap-2 mt-2">
+                                <button class="quick-amount-btn px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs text-gray-300" data-amount="100" data-target="stake-amount">100</button>
+                                <button class="quick-amount-btn px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs text-gray-300" data-amount="500" data-target="stake-amount">500</button>
+                                <button class="quick-amount-btn px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs text-gray-300" data-amount="1000" data-target="stake-amount">1000</button>
+                                <button class="quick-amount-btn px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs text-gray-300" data-target="stake-amount">MAX</button>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <h4 class="font-semibold mb-2">Staking Information</h4>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">APY:</span>
+                                    <span class="text-green-400 font-semibold">25.8%</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Lock Period:</span>
+                                    <span class="text-gray-300">30 days</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Early Unstake Fee:</span>
+                                    <span class="text-red-400">5%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-purple-500/20 border border-purple-500/30 rounded-lg p-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-purple-300">💡</span>
+                                <span class="text-sm text-purple-300">Earn rewards while supporting the Token Arena ecosystem</span>
+                            </div>
+                        </div>
+
+                        <button class="stake-btn w-full py-3 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 font-semibold transition-colors" data-action="stake">
+                            Stake Tokens
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Current Stakes -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Your Active Stakes</h3>
+
+                    <div class="space-y-4">
+                        <!-- Active Stake 1 -->
+                        <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <div>
+                                    <h4 class="font-semibold">ARENA Token Staking</h4>
+                                    <p class="text-sm text-gray-400">Started 15 days ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-lg font-bold text-green-400">+45.67 ARENA</div>
+                                    <div class="text-xs text-gray-400">Earned rewards</div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4 mb-3">
+                                <div>
+                                    <p class="text-xs text-gray-400">Staked Amount</p>
+                                    <p class="font-semibold">500 ARENA</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400">APY</p>
+                                    <p class="font-semibold text-green-400">25.8%</p>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="flex justify-between text-xs text-gray-400 mb-1">
+                                    <span>Time Remaining</span>
+                                    <span>15 days</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full progress-bar" data-progress="50%"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button class="claim-reward-btn flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg text-green-300 text-sm" data-reward-type="ARENA" data-amount="45.67">
+                                    Claim Rewards
+                                </button>
+                                <button class="stake-btn flex-1 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-300 text-sm" data-action="unstake">
+                                    Unstake
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Active Stake 2 -->
+                        <div class="bg-gray-800 border border-gray-700 rounded-xl p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <div>
+                                    <h4 class="font-semibold">Liquidity Mining</h4>
+                                    <p class="text-sm text-gray-400">Started 5 days ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-lg font-bold text-green-400">+12.34 ARENA</div>
+                                    <div class="text-xs text-gray-400">Earned rewards</div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4 mb-3">
+                                <div>
+                                    <p class="text-xs text-gray-400">LP Tokens</p>
+                                    <p class="font-semibold">25.8 LP</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400">APY</p>
+                                    <p class="font-semibold text-green-400">45.2%</p>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="flex justify-between text-xs text-gray-400 mb-1">
+                                    <span>Time Remaining</span>
+                                    <span>25 days</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full progress-bar" data-progress="83%"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button class="claim-reward-btn flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg text-green-300 text-sm" data-reward-type="ARENA" data-amount="12.34">
+                                    Claim Rewards
+                                </button>
+                                <button class="stake-btn flex-1 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-300 text-sm" data-action="unstake">
+                                    Remove LP
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Battle Rewards Tab (Hidden by default) -->
+        <div id="battles" class="tab-content hidden">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-xl font-semibold mb-4">Battle Rewards History</h3>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-900">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Battle</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Position</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Reward</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700">
+                            <tr class="hover:bg-gray-750">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">BTC vs ETH</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">2 hours ago</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="text-green-400">1st Place</span></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">150 ARENA</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-500/20 text-green-300">Available</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <button class="claim-reward-btn text-purple-400 hover:text-purple-300" data-reward-type="ARENA" data-amount="150">Claim</button>
+                                </td>
+                            </tr>
+                            <tr class="hover:bg-gray-750">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">SOL vs ADA</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">5 hours ago</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="text-yellow-400">2nd Place</span></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">75 ARENA</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-500/20 text-green-300">Available</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <button class="claim-reward-btn text-purple-400 hover:text-purple-300" data-reward-type="ARENA" data-amount="75">Claim</button>
+                                </td>
+                            </tr>
+                            <tr class="hover:bg-gray-750">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">DOGE vs SHIB</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">1 day ago</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="text-green-400">1st Place</span></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold">200 ARENA</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-500/20 text-gray-300">Claimed</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                    <span class="text-gray-400">Already claimed</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-6 bg-purple-500/20 border border-purple-500/30 rounded-lg p-4">
+                    <h4 class="font-semibold text-purple-300 mb-2">Reward Tiers</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <span class="font-semibold text-green-400">1st Place:</span> 150-500 ARENA
+                        </div>
+                        <div>
+                            <span class="font-semibold text-yellow-400">2nd Place:</span> 75-250 ARENA
+                        </div>
+                        <div>
+                            <span class="font-semibold text-red-400">3rd Place:</span> 25-100 ARENA
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Achievements Tab (Hidden by default) -->
+        <div id="achievements" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Achievement 1 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <div class="text-center mb-4">
+                        <div class="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">🏆</div>
+                        <h4 class="font-semibold">First Victory</h4>
+                        <p class="text-sm text-gray-400">Win your first battle</p>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-gray-400">Reward:</span>
+                        <span class="text-sm font-semibold text-green-400">100 ARENA</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+                        <div class="bg-green-500 h-2 rounded-full progress-bar" data-progress="100%"></div>
+                    </div>
+                    <button class="unlock-achievement-btn w-full py-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg text-green-300 text-sm" data-achievement-id="first-victory">
+                        Unlock Achievement
+                    </button>
+                </div>
+
+                <!-- Achievement 2 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <div class="text-center mb-4">
+                        <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">⚔️</div>
+                        <h4 class="font-semibold">Battle Master</h4>
+                        <p class="text-sm text-gray-400">Win 50 battles</p>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-gray-400">Reward:</span>
+                        <span class="text-sm font-semibold text-green-400">1000 ARENA</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+                        <div class="bg-purple-500 h-2 rounded-full progress-bar" data-progress="34%"></div>
+                    </div>
+                    <div class="text-center text-sm text-gray-400">17/50 battles won</div>
+                </div>
+
+                <!-- Achievement 3 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <div class="text-center mb-4">
+                        <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">💧</div>
+                        <h4 class="font-semibold">Liquidity Provider</h4>
+                        <p class="text-sm text-gray-400">Provide liquidity to 5 pools</p>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-gray-400">Reward:</span>
+                        <span class="text-sm font-semibold text-green-400">500 ARENA</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+                        <div class="bg-blue-500 h-2 rounded-full progress-bar" data-progress="60%"></div>
+                    </div>
+                    <div class="text-center text-sm text-gray-400">3/5 pools joined</div>
+                </div>
+
+                <!-- Achievement 4 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <div class="text-center mb-4">
+                        <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">📈</div>
+                        <h4 class="font-semibold">Top Trader</h4>
+                        <p class="text-sm text-gray-400">Reach $100K trading volume</p>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-gray-400">Reward:</span>
+                        <span class="text-sm font-semibold text-green-400">2000 ARENA</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+                        <div class="bg-green-500 h-2 rounded-full progress-bar" data-progress="78%"></div>
+                    </div>
+                    <div class="text-center text-sm text-gray-400">$78,500 / $100,000</div>
+                </div>
+
+                <!-- Achievement 5 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 opacity-50">
+                    <div class="text-center mb-4">
+                        <div class="w-16 h-16 bg-gray-600/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">🔒</div>
+                        <h4 class="font-semibold">Secret Achievement</h4>
+                        <p class="text-sm text-gray-400">???</p>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-gray-400">Reward:</span>
+                        <span class="text-sm font-semibold text-gray-400">???</span>
+                    </div>
+                    <div class="text-center text-sm text-gray-400">Keep exploring to unlock</div>
+                </div>
+
+                <!-- Achievement 6 -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <div class="text-center mb-4">
+                        <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-2">🎯</div>
+                        <h4 class="font-semibold">Prediction Expert</h4>
+                        <p class="text-sm text-gray-400">Correctly predict 20 battles</p>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm text-gray-400">Reward:</span>
+                        <span class="text-sm font-semibold text-green-400">750 ARENA</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2 mb-3">
+                        <div class="bg-red-500 h-2 rounded-full progress-bar" data-progress="45%"></div>
+                    </div>
+                    <div class="text-center text-sm text-gray-400">9/20 correct predictions</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Referral Program Tab (Hidden by default) -->
+        <div id="referral" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Referral Stats -->
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                    <h3 class="text-xl font-semibold mb-4">Your Referral Stats</h3>
+
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-purple-300 mb-1">23</div>
+                            <div class="text-sm text-gray-400">Total Referrals</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-green-300 mb-1">2,340</div>
+                            <div class="text-sm text-gray-400">ARENA Earned</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-blue-300 mb-1">$45,678</div>
+                            <div class="text-sm text-gray-400">Referral Volume</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-bold text-yellow-300 mb-1">15%</div>
+                            <div class="text-sm text-gray-400">Conversion Rate</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-purple-500/20 border border-purple-500/30 rounded-lg p-4 mb-4">
+                        <h4 class="font-semibold text-purple-300 mb-2">Your Referral Code</h4>
+                        <div class="flex items-center justify-between">
+                            <span class="text-2xl font-bold text-white">ARENA2024</span>
+                            <button id="copy-referral-btn" class="px-4 py-2 bg-purple-500/30 hover:bg-purple-500/40 rounded-lg text-purple-300 transition-colors">
+                                Copy Code
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-green-500/20 border border-green-500/30 rounded-lg p-4">
+                        <h4 class="font-semibold text-green-300 mb-2">Referral Benefits</h4>
+                        <ul class="space-y-1 text-sm">
+                            <li>• Earn 100 ARENA for each successful referral</li>
+                            <li>• Get 5% of your referral's trading fees</li>
+                            <li>• Bonus rewards for top referrers</li>
+                            <li>• Exclusive NFT rewards for milestone achievements</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Recent Referrals -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Recent Referrals</h3>
+
+                    <div class="space-y-3">
+                        <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-semibold">0x8f3a2b1c4d5e6f7...</p>
+                                    <p class="text-sm text-gray-400">Joined 2 days ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-green-400 font-semibold">+100 ARENA</p>
+                                    <p class="text-xs text-gray-400">Active trader</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-semibold">0x2b7c8d9e0f1a2b3...</p>
+                                    <p class="text-sm text-gray-400">Joined 5 days ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-green-400 font-semibold">+100 ARENA</p>
+                                    <p class="text-xs text-gray-400">Active trader</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-semibold">0x4d5e6f789012345...</p>
+                                    <p class="text-sm text-gray-400">Joined 1 week ago</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-green-400 font-semibold">+100 ARENA</p>
+                                    <p class="text-xs text-gray-400">Active trader</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h4 class="font-semibold mb-3">Share Your Referral Link</h4>
+                        <div class="flex gap-2">
+                            <button class="flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors">
+                                Share on Twitter
+                            </button>
+                            <button class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors">
+                                Share on Discord
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Featured Rewards -->
+<section class="rewards-section py-8">
+    <div class="px-8">
+        <h2 class="text-2xl font-bold mb-6">Limited Time Rewards</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Reward 1 -->
+            <div class="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center text-xl">🎁</div>
+                    <span class="bg-red-500/20 text-red-300 px-2 py-1 rounded-lg text-xs font-semibold">3 days left</span>
+                </div>
+                <h3 class="text-lg font-semibold mb-2">Double Staking Rewards</h3>
+                <p class="text-gray-400 text-sm mb-4">Earn 2x rewards on all new stakes for the next 3 days</p>
+                <div class="text-2xl font-bold text-purple-300 mb-2">2x APY</div>
+                <button class="w-full py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 transition-colors">
+                    Participate Now
+                </button>
+            </div>
+
+            <!-- Reward 2 -->
+            <div class="bg-gradient-to-br from-green-900/30 to-blue-900/30 border border-green-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center text-xl">🏆</div>
+                    <span class="bg-red-500/20 text-red-300 px-2 py-1 rounded-lg text-xs font-semibold">1 week left</span>
+                </div>
+                <h3 class="text-lg font-semibold mb-2">Battle Championship</h3>
+                <p class="text-gray-400 text-sm mb-4">Compete in our weekly tournament for a chance to win 10,000 ARENA</p>
+                <div class="text-2xl font-bold text-green-300 mb-2">10,000 ARENA</div>
+                <button class="w-full py-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg text-green-300 transition-colors">
+                    Join Tournament
+                </button>
+            </div>
+
+            <!-- Reward 3 -->
+            <div class="bg-gradient-to-br from-yellow-900/30 to-red-900/30 border border-yellow-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center text-xl">🎯</div>
+                    <span class="bg-red-500/20 text-red-300 px-2 py-1 rounded-lg text-xs font-semibold">5 days left</span>
+                </div>
+                <h3 class="text-lg font-semibold mb-2">Liquidity Mining Bonus</h3>
+                <p class="text-gray-400 text-sm mb-4">Extra 500 ARENA bonus for providing liquidity to featured pools</p>
+                <div class="text-2xl font-bold text-yellow-300 mb-2">+500 ARENA</div>
+                <button class="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 rounded-lg text-yellow-300 transition-colors">
+                    Add Liquidity
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -38,22 +38,23 @@ def create_app() -> Flask:
         except Exception:
             pass
 
-    # Static files via WhiteNoise for efficient static serving
-    try:
-        static_prefix = app.static_url_path or '/static'
-        if not static_prefix.endswith('/'):
-            static_prefix = static_prefix + '/'
-        max_age = int(app.config.get('STATIC_CACHE_SECONDS', 86400))
-    except Exception:
-        static_prefix = '/static/'
-        max_age = 86400
-    app.wsgi_app = WhiteNoise(
-        app.wsgi_app,
-        root=app.static_folder,
-        prefix=static_prefix,
-        max_age=max_age,
-        autorefresh=app.debug,
-    )
+    # Static files via WhiteNoise (optional). Skip when USE_WHITENOISE is false.
+    if app.config.get('USE_WHITENOISE'):
+        try:
+            static_prefix = app.static_url_path or '/static'
+            if not static_prefix.endswith('/'):
+                static_prefix = static_prefix + '/'
+            max_age = int(app.config.get('STATIC_CACHE_SECONDS', 86400))
+        except Exception:
+            static_prefix = '/static/'
+            max_age = 86400
+        app.wsgi_app = WhiteNoise(
+            app.wsgi_app,
+            root=app.static_folder,
+            prefix=static_prefix,
+            max_age=max_age,
+            autorefresh=app.debug,
+        )
 
     # Blueprints
     app.register_blueprint(ui_bp)

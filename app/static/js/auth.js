@@ -85,8 +85,7 @@
       if (!TB.__mock) TB.__mock = {};
       TB.__mock.user = TB.__mock.user || { npub: 'demo'.padEnd(64,'0'), display_name: 'Demo User', avatar_url: null, npub_bech32: null };
       if (TB.enableMock) TB.enableMock(true);
-      if (TB.showToast) TB.showToast('Demo mode enabled');
-      load();
+            load();
     });
     document.getElementById('back-login')?.addEventListener('click', async () => {
       render(null);

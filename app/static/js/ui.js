@@ -123,7 +123,6 @@
   TB.isMockEnabled = isMockEnabled;
   TB.enableMock = function(v){
     setMockEnabled(!!v);
-    if (TB.showToast) TB.showToast(isMockEnabled() ? 'Demo mode enabled' : 'Demo mode disabled');
     if (isMockEnabled()){ if (!TB.__mock.tokens) { seedMockData(); } }
     updateDemoButtonUI();
   };
@@ -602,28 +601,9 @@
       btn.classList.remove('active');
       btn.setAttribute('aria-pressed', 'false');
     }
-    ensureDemoBanner();
   }
 
-  function ensureDemoBanner(){
-    let b = document.getElementById('demo-banner');
-    if (!isMockEnabled()){
-      if (b) b.remove();
-      return;
-    }
-    if (!b){
-      b = document.createElement('div');
-      b.id = 'demo-banner';
-      b.textContent = 'Demo Mode';
-      b.style.position = 'fixed'; b.style.top = '10px'; b.style.right = '10px';
-      b.style.padding = '6px 10px'; b.style.borderRadius = '999px';
-      b.style.fontWeight = '600'; b.style.fontSize = '12px';
-      b.style.background = '#7c5cff'; b.style.color = 'white';
-      b.style.zIndex = '9999';
-      document.body.appendChild(b);
-    }
-  }
-
+  
   // Layout: keep space for fixed header/footer using CSS vars
   function updateLayoutVars(){
     try{
@@ -699,13 +679,11 @@
         // re-seed and regenerate data
         TB.__mock.tokens = null; TB.__mock.users = null;
         seedMockData(); updateDemoButtonUI();
-        if (TB.showToast) TB.showToast('Demo settings applied');
-      });
+              });
       panel.querySelector('#demo-reset').addEventListener('click', ()=>{
         setMockConfig({ ...DEFAULT_CFG });
         TB.__mock.tokens = null; TB.__mock.users = null; seedMockData(); updateDemoButtonUI();
-        if (TB.showToast) TB.showToast('Demo settings reset');
-      });
+              });
     }
     // set current values
     const cfg = TB.__mock.config || DEFAULT_CFG;
@@ -757,8 +735,7 @@
         setMockConfig(cfg);
         TB.enableMock && TB.enableMock(true);
         TB.__mock.tokens = null; TB.__mock.users = null; seedMockData();
-        if (TB.showToast) TB.showToast('Demo preset applied');
-      }
+              }
     } catch {}
     const tools = document.querySelector('.tool-buttons');
     if (tools && !document.getElementById('demo-toggle')){
@@ -779,7 +756,6 @@
       tools.appendChild(settingsBtn);
     }
     updateDemoButtonUI();
-    ensureDemoBanner();
     updateActiveNav();
     // Layout vars for fixed header/footer
     updateLayoutVars();

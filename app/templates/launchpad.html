@@ -20,144 +20,748 @@
 }
 </script>
 {% endblock %}
+
+{% block scripts %}
+<script>
+// Launchpad Interactive Elements
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Launchpad DOM loaded'); // Debug log
+
+    // Tab functionality
+    const tabButtons = document.querySelectorAll('.launchpad-tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    console.log('Found tab buttons:', tabButtons.length); // Debug log
+    console.log('Found tab contents:', tabContents.length); // Debug log
+
+    // Test that all elements exist
+    console.log('Testing element existence:');
+    console.log('- create-asset tab:', document.getElementById('create-asset'));
+    console.log('- create-pool tab:', document.getElementById('create-pool'));
+    console.log('- my-assets tab:', document.getElementById('my-assets'));
+    console.log('- virtual-fields:', document.getElementById('virtual-fields'));
+    console.log('- backed-fields:', document.getElementById('backed-fields'));
+    console.log('- asset-creation-form:', document.getElementById('asset-creation-form'));
+    console.log('- pool-creation-form:', document.getElementById('pool-creation-form'));
+    console.log('- toast element:', document.getElementById('toast'));
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetTab = button.getAttribute('data-tab');
+            console.log('Tab clicked:', targetTab); // Debug log
+
+            // Update active states
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                content.style.display = 'none';
+                content.style.visibility = 'hidden';
+                content.style.opacity = '0';
+            });
+
+            button.classList.add('active');
+
+            const targetElement = document.getElementById(targetTab);
+            if (targetElement) {
+                targetElement.classList.add('active');
+                targetElement.style.display = 'block';
+                targetElement.style.visibility = 'visible';
+                targetElement.style.opacity = '1';
+                console.log('Tab activated:', targetTab); // Debug log
+            } else {
+                console.error('Tab element not found:', targetTab); // Debug log
+            }
+        });
+    });
+
+    // Ensure first tab is visible by default
+    if (tabButtons.length > 0 && tabContents.length > 0) {
+        tabButtons[0].click();
+    }
+
+    // Pool type selection
+    const poolTypeCards = document.querySelectorAll('.pool-type-card');
+    console.log('Found pool type cards:', poolTypeCards.length); // Debug log
+
+    poolTypeCards.forEach(card => {
+        card.addEventListener('click', function() {
+            poolTypeCards.forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+
+            const poolType = this.getAttribute('data-pool-type');
+            console.log('Pool type selected:', poolType); // Debug log
+            updatePoolTypeSpecificFields(poolType);
+        });
+    });
+
+    // Asset creation form validation
+    const assetForm = document.getElementById('asset-creation-form');
+    if (assetForm) {
+        assetForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const assetData = {
+                name: formData.get('asset_name'),
+                symbol: formData.get('asset_symbol'),
+                description: formData.get('asset_description'),
+                supply: formData.get('asset_supply'),
+                decimals: formData.get('asset_decimals'),
+                poolType: document.querySelector('.pool-type-card.selected')?.getAttribute('data-pool-type')
+            };
+
+            if (validateAssetData(assetData)) {
+                createAsset(assetData);
+            }
+        });
+    }
+
+    // Pool creation form validation
+    const poolForm = document.getElementById('pool-creation-form');
+    if (poolForm) {
+        poolForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const poolData = {
+                assetId: formData.get('asset_id'),
+                poolType: formData.get('pool_type'),
+                initialLiquidity: formData.get('initial_liquidity'),
+                targetPrice: formData.get('target_price'),
+                feeRate: formData.get('fee_rate')
+            };
+
+            if (validatePoolData(poolData)) {
+                createPool(poolData);
+            }
+        });
+    }
+
+    // Search functionality
+    const searchInput = document.querySelector('#asset-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            filterAssets(searchTerm);
+        });
+    }
+
+    // Copy to clipboard functionality
+    const copyButtons = document.querySelectorAll('.copy-btn');
+    copyButtons.forEach(button => {
+        button.addEventListener('click', async () => {
+            const textToCopy = button.getAttribute('data-copy');
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                showNotification('Copied to clipboard!', 'success');
+            } catch (err) {
+                showNotification('Failed to copy', 'error');
+            }
+        });
+    });
+});
+
+function updatePoolTypeSpecificFields(poolType) {
+    const virtualFields = document.getElementById('virtual-fields');
+    const backedFields = document.getElementById('backed-fields');
+
+    console.log('Updating pool type:', poolType); // Debug log
+
+    if (poolType === 'virtual') {
+        virtualFields.style.display = 'block';
+        virtualFields.style.visibility = 'visible';
+        virtualFields.style.opacity = '1';
+        virtualFields.classList.add('active');
+
+        backedFields.style.display = 'none';
+        backedFields.style.visibility = 'hidden';
+        backedFields.style.opacity = '0';
+        backedFields.classList.remove('active');
+    } else if (poolType === 'fully-backed') {
+        backedFields.style.display = 'block';
+        backedFields.style.visibility = 'visible';
+        backedFields.style.opacity = '1';
+        backedFields.classList.add('active');
+
+        virtualFields.style.display = 'none';
+        virtualFields.style.visibility = 'hidden';
+        virtualFields.style.opacity = '0';
+        virtualFields.classList.remove('active');
+    }
+}
+
+function validateAssetData(data) {
+    if (!data.name || data.name.length < 3) {
+        showNotification('Asset name must be at least 3 characters', 'error');
+        return false;
+    }
+    if (!data.symbol || data.symbol.length < 2 || data.symbol.length > 10) {
+        showNotification('Asset symbol must be 2-10 characters', 'error');
+        return false;
+    }
+    if (!data.supply || parseFloat(data.supply) <= 0) {
+        showNotification('Invalid supply amount', 'error');
+        return false;
+    }
+    if (!data.poolType) {
+        showNotification('Please select a pool type', 'error');
+        return false;
+    }
+    return true;
+}
+
+function validatePoolData(data) {
+    if (!data.assetId) {
+        showNotification('Please select an asset', 'error');
+        return false;
+    }
+    if (!data.initialLiquidity || parseFloat(data.initialLiquidity) <= 0) {
+        showNotification('Invalid initial liquidity', 'error');
+        return false;
+    }
+    return true;
+}
+
+function createAsset(assetData) {
+    showNotification('Creating asset...', 'info');
+
+    // Simulate asset creation
+    setTimeout(() => {
+        showNotification(`Asset "${assetData.name}" created successfully!`, 'success');
+
+        // Reset form
+        document.getElementById('asset-creation-form').reset();
+
+        // Add to assets list
+        addAssetToList(assetData);
+    }, 2000);
+}
+
+function createPool(poolData) {
+    showNotification('Creating pool...', 'info');
+
+    // Simulate pool creation
+    setTimeout(() => {
+        showNotification('Pool created successfully!', 'success');
+
+        // Reset form
+        document.getElementById('pool-creation-form').reset();
+
+        // Refresh pools list
+        refreshPoolsList();
+    }, 2000);
+}
+
+function addAssetToList(assetData) {
+    const assetsList = document.querySelector('.assets-grid');
+    if (!assetsList) return;
+
+    const assetCard = document.createElement('div');
+    assetCard.className = 'asset-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300';
+    assetCard.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center text-xl">🪙</div>
+                <div>
+                    <h3 class="font-bold text-lg">${assetData.name}</h3>
+                    <p class="text-gray-400 text-sm">${assetData.symbol}</p>
+                </div>
+            </div>
+            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-500/20 text-green-300">New</span>
+        </div>
+        <div class="space-y-2">
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-400">Supply:</span>
+                <span>${assetData.supply}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-400">Pool Type:</span>
+                <span class="capitalize">${assetData.poolType}</span>
+            </div>
+        </div>
+        <div class="mt-4">
+            <button class="w-full py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors" onclick="selectAssetForPool('${assetData.symbol}')">
+                Create Pool
+            </button>
+        </div>
+    `;
+
+    assetsList.appendChild(assetCard);
+}
+
+function filterAssets(searchTerm) {
+    const assetCards = document.querySelectorAll('.asset-card');
+    assetCards.forEach(card => {
+        const cardText = card.textContent.toLowerCase();
+        if (cardText.includes(searchTerm)) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function selectAssetForPool(assetSymbol) {
+    // Switch to pool creation tab and pre-fill asset
+    document.querySelector('[data-tab="create-pool"]').click();
+    const assetSelect = document.getElementById('asset-select');
+    if (assetSelect) {
+        assetSelect.value = assetSymbol;
+    }
+}
+
+function testLaunchpad() {
+    console.log('=== LAUNCHPAD TEST ===');
+
+    // Test tabs
+    const tabButtons = document.querySelectorAll('.launchpad-tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    console.log('Tab buttons found:', tabButtons.length);
+    console.log('Tab contents found:', tabContents.length);
+
+    // Test clicking each tab
+    tabButtons.forEach((button, index) => {
+        console.log(`Testing tab ${index + 1}:`, button.getAttribute('data-tab'));
+        button.click();
+        setTimeout(() => {
+            const targetTab = button.getAttribute('data-tab');
+            const targetElement = document.getElementById(targetTab);
+            console.log(`Tab ${targetTab} display:`, targetElement ? targetElement.style.display : 'NOT FOUND');
+        }, 100);
+    });
+
+    // Test pool type cards
+    const poolCards = document.querySelectorAll('.pool-type-card');
+    console.log('Pool type cards found:', poolCards.length);
+
+    // Test pool selection
+    setTimeout(() => {
+        if (poolCards.length > 0) {
+            console.log('Testing virtual pool selection');
+            poolCards[0].click();
+        }
+    }, 500);
+
+    setTimeout(() => {
+        if (poolCards.length > 1) {
+            console.log('Testing fully-backed pool selection');
+            poolCards[1].click();
+        }
+    }, 1000);
+
+    // Test notification
+    setTimeout(() => {
+        showNotification('Launchpad test completed!', 'success');
+    }, 1500);
+
+    console.log('=== END TEST ===');
+}
+
+function showNotification(message, type = 'info') {
+    console.log('Showing notification:', message, type); // Debug log
+    const toast = document.getElementById('toast');
+    if (toast) {
+        toast.textContent = message;
+        toast.className = 'toast';
+
+        // Add type-specific styling
+        if (type === 'success') {
+            toast.style.backgroundColor = 'rgba(34, 197, 94, 0.9)';
+        } else if (type === 'error') {
+            toast.style.backgroundColor = 'rgba(239, 68, 68, 0.9)';
+        } else {
+            toast.style.backgroundColor = 'rgba(59, 130, 246, 0.9)';
+        }
+
+        toast.hidden = false;
+        setTimeout(() => {
+            toast.hidden = true;
+        }, 3000);
+        console.log('Notification displayed'); // Debug log
+    } else {
+        console.error('Toast element not found'); // Debug log
+    }
+}
+</script>
+{% endblock %}
+
 {% block content %}
-<section class="hero">
-  <h1>Launchpad</h1>
-  <p class="subtitle">Mint new RGB assets and create custom BTC↔RGB vAMM pools.</p>
+<!-- Launchpad Header -->
+<section class="launchpad-header py-8 bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/20">
+    <div class="px-8">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4">RGB Asset Launchpad</h1>
+            <p class="text-xl text-gray-300 max-w-3xl mx-auto">
+                Create RGB assets and launch virtual or fully-backed pools. One asset per pool type.
+            </p>
+            <button onclick="testLaunchpad()" class="mt-4 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm">
+                Test Launchpad Functionality
+            </button>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+            <div class="text-center">
+                <div class="text-3xl font-bold text-purple-300 mb-1">247</div>
+                <div class="text-gray-400 text-sm">Assets Created</div>
+            </div>
+            <div class="text-center">
+                <div class="text-3xl font-bold text-blue-300 mb-1">$12.5M</div>
+                <div class="text-gray-400 text-sm">Total Liquidity</div>
+            </div>
+            <div class="text-center">
+                <div class="text-3xl font-bold text-green-300 mb-1">189</div>
+                <div class="text-gray-400 text-sm">Active Pools</div>
+            </div>
+            <div class="text-center">
+                <div class="text-3xl font-bold text-yellow-300 mb-1">98.2%</div>
+                <div class="text-gray-400 text-sm">Success Rate</div>
+            </div>
+        </div>
+    </div>
 </section>
 
-<section class="lp-wrap">
-  <div class="lp-grid">
-    <div class="lp-card">
-      <h2>Mint New RGB Asset</h2>
-      <p class="muted">Issues a new RGB NIA asset via your configured RLN node and creates a BTC↔RGB vAMM with virtual liquidity.</p>
-      <form id="mint-form" class="form-grid">
-        <label>
-          <span>Ticker</span>
-          <input id="mint-ticker" class="search-input" maxlength="20" placeholder="e.g. ARENA" required>
-        </label>
-        <label>
-          <span>Name</span>
-          <input id="mint-name" class="search-input" maxlength="128" placeholder="Token Arena" required>
-        </label>
-        <label>
-          <span>Precision</span>
-          <input id="mint-precision" class="search-input" type="number" min="0" max="18" value="0">
-        </label>
-        <label>
-          <span>Total Supply (ints)</span>
-          <input id="mint-supply" class="search-input" type="number" min="1" step="1" placeholder="1000000" required>
-        </label>
-        <label>
-          <span>Initial Price (BTC per RGB)</span>
-          <input id="mint-initial-price" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.00001" required>
-        </label>
-        <label>
-          <span>Virtual Depth (BTC)</span>
-          <input id="mint-virtual-depth" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.25" required>
-        </label>
-        <div class="actions">
-          <button type="submit" class="btn primary">Mint & Create Pool</button>
+<!-- Main Content Tabs -->
+<section class="py-8">
+    <div class="px-8">
+        <div class="flex items-center gap-4 mb-6 border-b border-gray-700">
+            <button class="launchpad-tab active px-6 py-3 font-semibold border-b-2 border-purple-500 text-purple-300" data-tab="create-asset">
+                Create Asset
+            </button>
+            <button class="launchpad-tab px-6 py-3 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-300" data-tab="create-pool">
+                Create Pool
+            </button>
+            <button class="launchpad-tab px-6 py-3 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-300" data-tab="my-assets">
+                My Assets
+            </button>
         </div>
-      </form>
-      <div id="mint-status" class="lp-status" style="display:none"></div>
-      <pre id="mint-output" class="lp-output" aria-live="polite"></pre>
-    </div>
 
-    <div class="lp-card">
-      <h2>Create Pool for Existing RGB</h2>
-      <p class="muted">Create a BTC↔RGB vAMM for an existing RGB asset. Select by symbol or paste the RLN Asset ID.</p>
-      <form id="pool-form" class="form-grid">
-        <label>
-          <span>Existing Symbol</span>
-          <select id="existing-asset-select" class="search-input">
-            <option value="">Select asset…</option>
-          </select>
-        </label>
-        <label>
-          <span>RLN Asset ID</span>
-          <input id="pool-rln-asset-id" class="search-input" placeholder="rgb1... (optional if symbol chosen)">
-        </label>
-        <label>
-          <span>Initial Price (BTC per RGB)</span>
-          <input id="pool-initial-price" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.00001" required>
-        </label>
-        <label>
-          <span>Virtual Depth (BTC)</span>
-          <input id="pool-virtual-depth" class="search-input" type="number" min="0" step="0.00000001" placeholder="0.25" required>
-        </label>
-        <label>
-          <span>Total Fee (bps)</span>
-          <input id="pool-fee-bps" class="search-input" type="number" min="0" max="500" value="100">
-        </label>
-        <label>
-          <span>LP Fee (bps)</span>
-          <input id="pool-lp-fee-bps" class="search-input" type="number" min="0" max="500" value="50">
-        </label>
-        <label>
-          <span>Platform Fee (bps)</span>
-          <input id="pool-platform-fee-bps" class="search-input" type="number" min="0" max="500" value="50">
-        </label>
-        <div class="actions">
-          <button type="submit" class="btn">Create Pool</button>
+        <!-- Create Asset Tab -->
+        <div id="create-asset" class="tab-content active">
+            <div class="max-w-2xl mx-auto">
+                <form id="asset-creation-form" class="space-y-6">
+                    <!-- Asset Information -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Asset Information</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Asset Name *</label>
+                                <input type="text" name="asset_name" required class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500" placeholder="My Awesome Token">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Symbol *</label>
+                                <input type="text" name="asset_symbol" required maxlength="10" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500" placeholder="MAT">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Total Supply *</label>
+                                <input type="number" name="asset_supply" required min="1" step="1" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500" placeholder="1000000">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Decimals *</label>
+                                <select name="asset_decimals" required class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                                    <option value="8">8 (Standard)</option>
+                                    <option value="18">18 (ERC-20 Style)</option>
+                                    <option value="0">0 (Whole Units)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Description</label>
+                            <textarea name="asset_description" rows="3" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500" placeholder="Describe your asset..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Pool Type Selection -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Select Pool Type *</h3>
+                        <p class="text-gray-400 mb-4">Choose how your asset will be traded. One asset can only have one pool per type.</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="pool-type-card bg-gray-900 border-2 border-gray-600 rounded-xl p-4 cursor-pointer hover:border-purple-500 transition-all duration-300" data-pool-type="virtual">
+                                <div class="text-center">
+                                    <div class="text-3xl mb-2">🌐</div>
+                                    <h4 class="font-bold text-lg mb-2">Virtual Pool</h4>
+                                    <p class="text-sm text-gray-400">Trade without full backing. Price determined by AMM algorithm.</p>
+                                    <div class="mt-3 space-y-1 text-xs text-gray-500">
+                                        <div>• Lower capital requirements</div>
+                                        <div>• Algorithmic price discovery</div>
+                                        <div>• Higher volatility possible</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pool-type-card bg-gray-900 border-2 border-gray-600 rounded-xl p-4 cursor-pointer hover:border-purple-500 transition-all duration-300" data-pool-type="fully-backed">
+                                <div class="text-center">
+                                    <div class="text-3xl mb-2">🏦</div>
+                                    <h4 class="font-bold text-lg mb-2">Fully-Backed Pool</h4>
+                                    <p class="text-sm text-gray-400">100% reserve backed. Price pegged to underlying asset.</p>
+                                    <div class="mt-3 space-y-1 text-xs text-gray-500">
+                                        <div>• Full reserve backing</div>
+                                        <div>• Stable price peg</div>
+                                        <div>• Higher capital requirements</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pool Type Specific Fields -->
+                    <div id="virtual-fields" class="bg-gray-800 border border-gray-700 rounded-xl p-6" style="display: none;">
+                        <h3 class="text-xl font-bold mb-4">Virtual Pool Parameters</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Initial Target Price</label>
+                                <input type="number" name="target_price" step="0.01" min="0.01" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500" placeholder="1.00">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Volatility Factor</label>
+                                <select name="volatility_factor" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                                    <option value="low">Low (0.5%)</option>
+                                    <option value="medium" selected>Medium (1.0%)</option>
+                                    <option value="high">High (2.0%)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="backed-fields" class="bg-gray-800 border border-gray-700 rounded-xl p-6" style="display: none;">
+                        <h3 class="text-xl font-bold mb-4">Fully-Backed Pool Parameters</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Backing Asset</label>
+                                <select name="backing_asset" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                                    <option value="btc">Bitcoin (BTC)</option>
+                                    <option value="eth">Ethereum (ETH)</option>
+                                    <option value="usd">USD Stablecoin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Collateralization Ratio (%)</label>
+                                <input type="number" name="collateral_ratio" min="100" max="200" step="1" value="100" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 rounded-lg text-white font-bold transition-all duration-300">
+                        Create RGB Asset
+                    </button>
+                </form>
+            </div>
         </div>
-      </form>
-      <div id="pool-status" class="lp-status" style="display:none"></div>
-      <pre id="pool-output" class="lp-output" aria-live="polite"></pre>
-    </div>
-  </div>
 
-  <div class="lp-card">
-    <h2>Existing RGB Assets</h2>
-    <div id="existing-assets-list" class="assets-list"></div>
-  </div>
-  
-  <div class="lp-grid">
-    <div class="lp-card">
-      <h2>Recent Activity</h2>
-      <div id="lp-activity" class="activity-list">
-        <div class="muted small">No activity yet</div>
-      </div>
+        <!-- Create Pool Tab -->
+        <div id="create-pool" class="tab-content hidden">
+            <div class="max-w-2xl mx-auto">
+                <form id="pool-creation-form" class="space-y-6">
+                    <!-- Asset Selection -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Select Asset</h3>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Search Assets</label>
+                            <input type="text" id="asset-search" placeholder="Search by name or symbol..." class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-400 mb-2">Asset *</label>
+                            <select id="asset-select" name="asset_id" required class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                                <option value="">Select an asset</option>
+                                <option value="mat-token">My Awesome Token (MAT)</option>
+                                <option value="game-coin">Game Coin (GAME)</option>
+                                <option value="defi-dollar">DeFi Dollar (DDD)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Pool Configuration -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Pool Configuration</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Pool Type *</label>
+                                <select name="pool_type" required class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                                    <option value="">Select pool type</option>
+                                    <option value="virtual">Virtual Pool</option>
+                                    <option value="fully-backed">Fully-Backed Pool</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Initial Liquidity *</label>
+                                <input type="number" name="initial_liquidity" required min="0.01" step="0.01" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500" placeholder="1000.00">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Trading Fee (%)</label>
+                                <input type="number" name="fee_rate" min="0" max="5" step="0.1" value="0.3" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-400 mb-2">Minimum Liquidity</label>
+                                <input type="number" name="min_liquidity" min="0" step="0.01" value="100" class="w-full px-4 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pool Summary -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Pool Summary</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Asset:</span>
+                                <span id="summary-asset" class="font-semibold">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Pool Type:</span>
+                                <span id="summary-type" class="font-semibold">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Initial Liquidity:</span>
+                                <span id="summary-liquidity" class="font-semibold">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Trading Fee:</span>
+                                <span id="summary-fee" class="font-semibold">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 rounded-lg text-white font-bold transition-all duration-300">
+                        Create Pool
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- My Assets Tab -->
+        <div id="my-assets" class="tab-content hidden">
+            <div class="mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <h2 class="text-2xl font-bold">My Assets & Pools</h2>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Filter:</span>
+                        <button class="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-300 text-sm">All</button>
+                        <button class="px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600">No Pool</button>
+                        <button class="px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600">Virtual</button>
+                        <button class="px-4 py-2 rounded-lg bg-gray-700 text-gray-300 text-sm hover:bg-gray-600">Fully-Backed</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assets Grid -->
+            <div class="assets-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Asset Card 1 -->
+                <div class="asset-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center text-xl">🟣</div>
+                            <div>
+                                <h3 class="font-bold text-lg">Purple Token</h3>
+                                <p class="text-gray-400 text-sm">PURPLE</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-500/20 text-green-300">Active</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Supply:</span>
+                            <span>1,000,000</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Pool Type:</span>
+                            <span class="text-blue-300">Virtual</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Liquidity:</span>
+                            <span>$45,678</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">24h Volume:</span>
+                            <span class="text-green-300">+$2,345</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <button class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors">
+                            Manage
+                        </button>
+                        <button class="flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors">
+                            View Stats
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Asset Card 2 -->
+                <div class="asset-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center text-xl">🟢</div>
+                            <div>
+                                <h3 class="font-bold text-lg">Green Coin</h3>
+                                <p class="text-gray-400 text-sm">GREEN</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-500/20 text-green-300">Active</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Supply:</span>
+                            <span>500,000</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Pool Type:</span>
+                            <span class="text-yellow-300">Fully-Backed</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Backing:</span>
+                            <span> BTC 100%</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">24h Volume:</span>
+                            <span class="text-green-300">+$1,234</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-2">
+                        <button class="flex-1 py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors">
+                            Manage
+                        </button>
+                        <button class="flex-1 py-2 bg-blue-500/20 hover:bg-blue-500/30 rounded-lg text-blue-300 text-sm transition-colors">
+                            View Stats
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Asset Card 3 - No Pool -->
+                <div class="asset-card bg-gray-800 border border-gray-700 rounded-xl p-6 hover:border-purple-500 transition-all duration-300">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center text-xl">🟠</div>
+                            <div>
+                                <h3 class="font-bold text-lg">Orange Token</h3>
+                                <p class="text-gray-400 text-sm">ORANGE</p>
+                            </div>
+                        </div>
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-500/20 text-yellow-300">No Pool</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Supply:</span>
+                            <span>2,000,000</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Created:</span>
+                            <span>2 days ago</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">Status:</span>
+                            <span class="text-yellow-300">Awaiting Pool</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button class="w-full py-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-300 text-sm transition-colors" onclick="selectAssetForPool('ORANGE')">
+                            Create Pool
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="lp-card">
-      <h2>Tips</h2>
-      <ul class="tips-list">
-        <li>Use Mint & Create Pool to issue a new RGB asset and instantly create a BTC↔RGB vAMM.</li>
-        <li>Prefer higher virtual depth for smoother price impact in early trading.</li>
-        <li>You can also create a pool for an existing RGB by selecting the symbol or providing the RLN Asset ID.</li>
-        <li>In Demo Mode, responses are mocked so you can trial the full workflow safely.</li>
-      </ul>
-    </div>
-  </div>
 </section>
-
-<script src="/static/js/launchpad.js"></script>
-
-<style>
-  .lp-wrap { display: grid; gap: 20px; }
-  .lp-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-  .lp-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-  .form-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
-  .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; }
-  .form-grid label span { color: var(--text-secondary); }
-  .form-grid .search-input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
-  .form-grid .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
-  .lp-status { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 0.875rem; }
-  .lp-status.info { background: rgba(124,92,255,0.1); color: #c9c1ff; border: 1px solid rgba(124,92,255,0.3); }
-  .lp-status.success { background: rgba(16,185,129,0.12); color: #a7f3d0; border: 1px solid rgba(16,185,129,0.35); }
-  .lp-status.error { background: rgba(239,68,68,0.12); color: #fecaca; border: 1px solid rgba(239,68,68,0.35); }
-  .lp-output { margin-top: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-height: 240px; overflow: auto; }
-  .assets-list { display: grid; gap: 10px; }
-  .asset-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg); }
-  .asset-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
-  .asset-sym { font-weight: 700; color: var(--text); }
-  .asset-name { color: var(--text-secondary); }
-  .asset-meta { font-size: 0.8rem; color: var(--text-secondary); }
-  .asset-id { margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 0.78rem; color: var(--text-secondary); word-break: break-all; }
-  .activity-list { display: grid; gap: 8px; }
-  .activity-item { display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background: var(--bg); }
-  .activity-item .meta { color: var(--text-secondary); font-size: 0.8rem; }
-  .tips-list { margin: 0; padding-left: 18px; color: var(--text-secondary); line-height: 1.5; }
-  @media (max-width: 720px){ .form-grid { grid-template-columns: 1fr; } }
-</style>
 {% endblock %}

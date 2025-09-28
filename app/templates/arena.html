@@ -6,7 +6,7 @@
   "@type": "CollectionPage",
   "name": "Arena",
   "url": "{{ canonical_url }}",
-  "description": "{{ description or DEFAULT_DESCRIPTION }}"
+  "description": "Token Arena - Next-generation token battles with real-time combat, NFT integration, and metaverse arenas"
 }
 </script>
 <script type="application/ld+json">
@@ -20,973 +20,493 @@
 }
 </script>
 {% endblock %}
+
+{% block scripts %}
+<script>
+// Token Arena Interactive Battle System
+document.addEventListener('DOMContentLoaded', function() {
+    // Live battle countdown timers
+    const updateCountdowns = () => {
+        const timers = document.querySelectorAll('.countdown-timer');
+        timers.forEach(timer => {
+            const currentText = timer.textContent;
+            let timeLeft = 0;
+
+            // Parse current time text (e.g., "2h left", "4h left", "1h left")
+            if (currentText.includes('2h left')) {
+                timeLeft = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+            } else if (currentText.includes('4h left')) {
+                timeLeft = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+            } else if (currentText.includes('1h left')) {
+                timeLeft = 1 * 60 * 60 * 1000; // 1 hour in milliseconds
+            }
+
+            // Store initial time if not already stored
+            if (!timer.dataset.initialTime) {
+                timer.dataset.initialTime = timeLeft;
+                timer.dataset.startTime = Date.now();
+            }
+
+            const elapsed = Date.now() - parseInt(timer.dataset.startTime);
+            const remaining = parseInt(timer.dataset.initialTime) - elapsed;
+
+            if (remaining > 0) {
+                const hours = Math.floor(remaining / (1000 * 60 * 60));
+                const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+                timer.textContent = `${hours}h ${minutes}m ${seconds}s`;
+            } else {
+                timer.textContent = 'Ended';
+                timer.classList.add('text-red-400');
+            }
+        });
+    };
+
+    setInterval(updateCountdowns, 1000);
+    updateCountdowns();
+
+    // Battle card interactions
+    const battleCards = document.querySelectorAll('.battle-card');
+    battleCards.forEach(card => {
+        card.addEventListener('click', function() {
+            this.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                this.style.transform = 'scale(1)';
+            }, 150);
+        });
+    });
+
+    // Token selector interactions
+    const tokenOptions = document.querySelectorAll('.token-option');
+    tokenOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            tokenOptions.forEach(opt => opt.classList.remove('selected'));
+            this.classList.add('selected');
+        });
+    });
+
+    // Bet amount quick select
+    const betButtons = document.querySelectorAll('.bet-quick-select');
+    betButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const betInput = document.getElementById('bet-amount');
+            const amount = this.getAttribute('data-amount');
+            betInput.value = amount;
+        });
+    });
+
+    // Live battle ticker animation
+    const animateTicker = () => {
+        const ticker = document.querySelector('.battle-ticker-track');
+        if (ticker) {
+            ticker.style.transform = 'translateX(-50%)';
+            setTimeout(() => {
+                ticker.style.transition = 'transform 0.5s ease-in-out';
+                ticker.style.transform = 'translateX(0)';
+            }, 100);
+        }
+    };
+
+    setInterval(animateTicker, 10000);
+
+    // Battle participation animation
+    const joinBattleBtns = document.querySelectorAll('.join-battle-btn');
+    joinBattleBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const originalText = this.textContent;
+            this.textContent = 'Joining...';
+            this.disabled = true;
+
+            setTimeout(() => {
+                this.textContent = '✓ Joined!';
+                this.classList.add('bg-green-500');
+
+                setTimeout(() => {
+                    this.textContent = originalText;
+                    this.disabled = false;
+                    this.classList.remove('bg-green-500');
+                }, 2000);
+            }, 1000);
+        });
+    });
+});
+</script>
+{% endblock %}
+
 {% block content %}
+<!-- Arena Hero Section -->
+<section class="arena-hero min-h-screen flex items-center justify-center relative overflow-hidden">
+    <div class="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-blue-900/30 to-transparent"></div>
+    <div class="absolute inset-0">
+        <div class="absolute top-20 left-10 w-96 h-96 bg-purple-500/20 rounded-full filter blur-3xl animate-pulse"></div>
+        <div class="absolute bottom-20 right-10 w-80 h-80 bg-blue-500/20 rounded-full filter blur-3xl animate-pulse delay-1000"></div>
+        <div class="absolute top-1/2 left-1/2 w-64 h-64 bg-red-500/10 rounded-full filter blur-3xl animate-pulse delay-2000"></div>
+    </div>
 
-<!-- Advanced Trading Interface Hero -->
-<section class="hero trading-hero">
-  <div class="hero-content">
-    <div class="trading-badge">
-      <span class="badge-icon">📈</span>
-      <span class="badge-text">Professional Trading Interface</span>
+    <div class="container-fluid relative z-10 text-center">
+        <div class="mb-8">
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-full text-red-300 text-sm font-medium">
+                <span class="w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
+                Live Battles Active
+            </span>
+        </div>
+
+        <h1 class="text-6xl md:text-8xl font-bold mb-6 bg-gradient-to-r from-red-400 via-purple-400 to-blue-400 bg-clip-text text-transparent animate-gradient">
+            Battle Arena
+        </h1>
+
+        <p class="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
+            Enter the ultimate crypto battleground. Choose your champion, place your bets, and dominate the arena.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+            <button class="btn btn-primary btn-lg text-lg px-8 py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200">
+                Start New Battle ⚔️
+            </button>
+            <button class="btn btn-outline btn-lg text-lg px-8 py-4 rounded-xl font-bold border-purple-500/50 text-purple-300 hover:bg-purple-500/20 transition-all duration-200">
+                View Leaderboard 🏆
+            </button>
+        </div>
+
+        <!-- Arena Stats -->
+        <div class="arena-stats grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+            <div class="text-center">
+                <div class="stat-value text-3xl font-bold text-red-400">247</div>
+                <div class="text-sm text-gray-400 mt-1">Active Battles</div>
+            </div>
+            <div class="text-center">
+                <div class="stat-value text-3xl font-bold text-purple-400">$2.4M</div>
+                <div class="text-sm text-gray-400 mt-1">Total Prize Pool</div>
+            </div>
+            <div class="text-center">
+                <div class="stat-value text-3xl font-bold text-blue-400">8,947</div>
+                <div class="text-sm text-gray-400 mt-1">Warriors Online</div>
+            </div>
+            <div class="text-center">
+                <div class="stat-value text-3xl font-bold text-green-400">156K</div>
+                <div class="text-sm text-gray-400 mt-1">Battles Today</div>
+            </div>
+        </div>
     </div>
-    <h1>Token Arena<br><span class="gradient-text">Advanced Trading Intelligence</span></h1>
-    <p class="subtitle">Real-time market data, advanced analytics, portfolio tracking, and institutional-grade tools for the RGB ecosystem.</p>
-    <div class="hero-actions">
-      <a href="#trading-view" class="btn btn-cta">Launch Trading View</a>
-      <a href="/dashboard" class="btn btn-secondary">Portfolio Dashboard</a>
-      <a href="#alerts" class="btn btn-outline">Set Price Alerts</a>
-    </div>
-  </div>
-  <div class="hero-stats-advanced">
-    <div class="stat-cluster">
-      <div class="stat-item">
-        <span class="stat-value" id="hero-market-cap">-</span>
-        <span class="stat-label">Market Cap</span>
-        <span class="stat-change positive" id="market-cap-change">+0.0%</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value" id="hero-volume">-</span>
-        <span class="stat-label">24h Volume</span>
-        <span class="stat-change" id="volume-change">+0.0%</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value" id="hero-dominance">-</span>
-        <span class="stat-label">BTC Dominance</span>
-        <span class="stat-change neutral" id="dominance-change">0.0%</span>
-      </div>
-    </div>
-  </div>
 </section>
 
-<!-- Live Market Ticker -->
-<section class="market-ticker" aria-label="Live market data">
-  <div class="ticker-wrapper">
-    <div class="ticker-content" id="market-ticker">
-      <div class="ticker-loading">Loading market data...</div>
+<!-- Live Battle Ticker -->
+<section class="py-6 bg-black/30 border-t border-b border-red-500/20">
+    <div class="container-fluid">
+        <div class="flex items-center gap-4 mb-2">
+            <span class="text-red-400 font-bold animate-pulse">🔴 LIVE BATTLES</span>
+            <span class="text-gray-300">Real-time Combat Updates</span>
+        </div>
+        <div class="battle-ticker overflow-hidden">
+            <div class="battle-ticker-track flex gap-8 animate-ticker">
+                <div class="tick-item flex items-center gap-2">
+                    <span class="font-bold text-purple-300">BTC vs ETH</span>
+                    <span class="text-green-400">↑ 12% BTC</span>
+                    <span class="text-xs text-gray-400">2m left</span>
+                </div>
+                <div class="tick-item flex items-center gap-2">
+                    <span class="font-bold text-blue-300">SOL vs ADA</span>
+                    <span class="text-red-400">↓ 8% SOL</span>
+                    <span class="text-xs text-gray-400">5m left</span>
+                </div>
+                <div class="tick-item flex items-center gap-2">
+                    <span class="font-bold text-green-300">DOGE vs SHIB</span>
+                    <span class="text-green-400">↑ 24% DOGE</span>
+                    <span class="text-xs text-gray-400">1m left</span>
+                </div>
+                <div class="tick-item flex items-center gap-2">
+                    <span class="font-bold text-yellow-300">MATIC vs DOT</span>
+                    <span class="text-red-400">↓ 5% MATIC</span>
+                    <span class="text-xs text-gray-400">8m left</span>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 </section>
 
-<!-- Advanced Market Overview -->
-<section class="market-overview" aria-labelledby="overview-title">
-  <div class="section-header">
-    <h2 id="overview-title">📊 Market Intelligence Dashboard</h2>
-    <p class="section-subtitle">Real-time ecosystem metrics and advanced analytics</p>
-  </div>
-
-  <!-- Key Performance Indicators -->
-  <div class="kpi-grid">
-    <div class="kpi-card primary">
-      <div class="kpi-icon">💰</div>
-      <div class="kpi-content">
-        <div class="kpi-label">Total Market Cap</div>
-        <div class="kpi-value" id="stat-market-cap">-</div>
-        <div class="kpi-change" id="market-cap-trend">
-          <span class="trend-arrow">↗</span>
-          <span class="trend-value" id="market-cap-percent">+2.4%</span>
-          <span class="trend-period">24h</span>
+<!-- Active Battles Section -->
+<section class="py-20">
+    <div class="container-fluid">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-red-400 to-purple-400 bg-clip-text text-transparent">
+                Active Battles
+            </h2>
+            <p class="text-xl text-gray-400 max-w-2xl mx-auto">
+                Join ongoing token battles and test your prediction skills
+            </p>
         </div>
-      </div>
-    </div>
 
-    <div class="kpi-card">
-      <div class="kpi-icon">📊</div>
-      <div class="kpi-content">
-        <div class="kpi-label">24h Trading Volume</div>
-        <div class="kpi-value" id="stat-volume">-</div>
-        <div class="kpi-change" id="volume-trend">
-          <span class="trend-arrow">↗</span>
-          <span class="trend-value" id="volume-percent">+18.7%</span>
-          <span class="trend-period">24h</span>
-        </div>
-      </div>
-    </div>
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Battle Card 1 -->
+            <div class="battle-card bg-gradient-to-br from-purple-900/30 to-blue-900/30 border border-purple-500/30 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 hover:border-purple-400/50">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-orange-500/20 rounded-full flex items-center justify-center text-xl">🟠</div>
+                        <div>
+                            <div class="font-bold text-lg">Bitcoin</div>
+                            <div class="text-sm text-gray-400">BTC</div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-red-400">VS</div>
+                        <div class="text-xs text-gray-400 countdown-timer" data-end-time="">2h left</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div>
+                            <div class="font-bold text-lg text-right">Ethereum</div>
+                            <div class="text-sm text-gray-400 text-right">ETH</div>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center text-xl">🔵</div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-purple-300">Prize Pool</span>
+                        <span class="text-purple-400 font-bold">$50,000</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Participants</span>
+                        <span class="text-gray-300">1,247</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2">
+                        <div class="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full" style="width: 52%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-green-400">52% BTC</span>
+                        <span class="text-red-400">48% ETH</span>
+                    </div>
+                </div>
+                <button class="join-battle-btn w-full mt-4 btn btn-primary py-2 rounded-lg font-medium">
+                    Join Battle
+                </button>
+            </div>
 
-    <div class="kpi-card">
-      <div class="kpi-icon">🪙</div>
-      <div class="kpi-content">
-        <div class="kpi-label">Active Tokens</div>
-        <div class="kpi-value" id="stat-tokens">-</div>
-        <div class="kpi-change" id="tokens-trend">
-          <span class="trend-arrow">↗</span>
-          <span class="trend-value" id="tokens-percent">+5</span>
-          <span class="trend-period">24h</span>
-        </div>
-      </div>
-    </div>
+            <!-- Battle Card 2 -->
+            <div class="battle-card bg-gradient-to-br from-green-900/30 to-blue-900/30 border border-green-500/30 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 hover:border-green-400/50">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center text-xl">🟢</div>
+                        <div>
+                            <div class="font-bold text-lg">Solana</div>
+                            <div class="text-sm text-gray-400">SOL</div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-red-400">VS</div>
+                        <div class="text-xs text-gray-400 countdown-timer" data-end-time="">4h left</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div>
+                            <div class="font-bold text-lg text-right">Cardano</div>
+                            <div class="text-sm text-gray-400 text-right">ADA</div>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center text-xl">🔵</div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-purple-300">Prize Pool</span>
+                        <span class="text-purple-400 font-bold">$25,000</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Participants</span>
+                        <span class="text-gray-300">892</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2">
+                        <div class="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full" style="width: 68%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-green-400">68% SOL</span>
+                        <span class="text-red-400">32% ADA</span>
+                    </div>
+                </div>
+                <button class="join-battle-btn w-full mt-4 btn btn-primary py-2 rounded-lg font-medium">
+                    Join Battle
+                </button>
+            </div>
 
-    <div class="kpi-card">
-      <div class="kpi-icon">👥</div>
-      <div class="kpi-content">
-        <div class="kpi-label">Total Holders</div>
-        <div class="kpi-value" id="stat-holders">-</div>
-        <div class="kpi-change" id="holders-trend">
-          <span class="trend-arrow">↗</span>
-          <span class="trend-value" id="holders-percent">+12.3%</span>
-          <span class="trend-period">24h</span>
+            <!-- Battle Card 3 -->
+            <div class="battle-card bg-gradient-to-br from-red-900/30 to-yellow-900/30 border border-red-500/30 rounded-2xl p-6 cursor-pointer transition-all duration-300 hover:scale-105 hover:border-red-400/50">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center text-xl">🟡</div>
+                        <div>
+                            <div class="font-bold text-lg">Dogecoin</div>
+                            <div class="text-sm text-gray-400">DOGE</div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-red-400">VS</div>
+                        <div class="text-xs text-gray-400 countdown-timer" data-end-time="">1h left</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div>
+                            <div class="font-bold text-lg text-right">Shiba Inu</div>
+                            <div class="text-sm text-gray-400 text-right">SHIB</div>
+                        </div>
+                        <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center text-xl">🔴</div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-purple-300">Prize Pool</span>
+                        <span class="text-purple-400 font-bold">$15,000</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-400">Participants</span>
+                        <span class="text-gray-300">2,156</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-2">
+                        <div class="bg-gradient-to-r from-yellow-500 to-red-500 h-2 rounded-full" style="width: 45%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                        <span class="text-green-400">45% DOGE</span>
+                        <span class="text-red-400">55% SHIB</span>
+                    </div>
+                </div>
+                <button class="join-battle-btn w-full mt-4 btn btn-primary py-2 rounded-lg font-medium">
+                    Join Battle
+                </button>
+            </div>
         </div>
-      </div>
-    </div>
 
-    <div class="kpi-card">
-      <div class="kpi-icon">🏆</div>
-      <div class="kpi-content">
-        <div class="kpi-label">Market Dominance</div>
-        <div class="kpi-value" id="stat-dominance">-</div>
-        <div class="kpi-change" id="dominance-trend">
-          <span class="trend-arrow">↘</span>
-          <span class="trend-value" id="dominance-percent">-0.8%</span>
-          <span class="trend-period">24h</span>
+        <div class="text-center mt-12">
+            <button class="btn btn-outline btn-lg px-8 py-3 rounded-xl font-bold border-purple-500/50 text-purple-300 hover:bg-purple-500/20 transition-all duration-200">
+                View All Battles →
+            </button>
         </div>
-      </div>
     </div>
-
-    <div class="kpi-card">
-      <div class="kpi-icon">⚡</div>
-      <div class="kpi-content">
-        <div class="kpi-label">Network Activity</div>
-        <div class="kpi-value" id="network-activity">-</div>
-        <div class="kpi-change" id="activity-trend">
-          <span class="trend-arrow">↗</span>
-          <span class="trend-value" id="activity-percent">+25.1%</span>
-          <span class="trend-period">24h</span>
-        </div>
-      </div>
-    </div>
-  </div>
 </section>
 
-<!-- Advanced Analytics & Charts -->
-<section class="analytics-section" aria-labelledby="analytics-title">
-  <div class="section-header">
-    <h2 id="analytics-title">📈 Advanced Market Analytics</h2>
-    <p class="section-subtitle">Professional-grade charts and technical analysis</p>
-  </div>
-
-  <!-- Chart Controls -->
-  <div class="chart-controls">
-    <div class="control-group">
-      <label class="control-label">Timeframe</label>
-      <div class="segmented" id="global-range">
-        <div class="btn" data-range="1h">1H</div>
-        <div class="btn" data-range="4h">4H</div>
-        <div class="btn" data-range="1d">1D</div>
-        <div class="btn active" data-range="7d">7D</div>
-        <div class="btn" data-range="30d">30D</div>
-        <div class="btn" data-range="90d">90D</div>
-        <div class="btn" data-range="all">ALL</div>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <label class="control-label">Chart Type</label>
-      <div class="segmented" id="chart-type">
-        <div class="btn active" data-type="line">Line</div>
-        <div class="btn" data-type="candlestick">Candles</div>
-        <div class="btn" data-type="area">Area</div>
-        <div class="btn" data-type="bar">Bars</div>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <label class="control-label">Indicators</label>
-      <div class="segmented" id="indicators">
-        <div class="btn active" data-indicator="none">None</div>
-        <div class="btn" data-indicator="sma">SMA</div>
-        <div class="btn" data-indicator="ema">EMA</div>
-        <div class="btn" data-indicator="rsi">RSI</div>
-        <div class="btn" data-indicator="macd">MACD</div>
-        <div class="btn" data-indicator="bb">Bollinger</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Main Charts -->
-  <div class="charts-grid advanced">
-    <div class="chart-container main-chart">
-      <div class="chart-header">
-        <h3>Token Ecosystem Growth</h3>
-        <div class="chart-badges">
-          <span class="badge live">● Live</span>
-          <span class="badge timeframe" id="current-timeframe">30D</span>
+<!-- Create Battle Section -->
+<section class="py-20 bg-black/20">
+    <div class="container-fluid">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl md:text-5xl font-bold mb-4">Create Your Own Battle</h2>
+            <p class="text-xl text-gray-400">Challenge the community with your token matchup</p>
         </div>
-      </div>
-      <div class="chart-wrapper">
-        <canvas id="globalTokensChart" aria-label="Token ecosystem growth chart"></canvas>
-      </div>
-      <div class="chart-footer">
-        <div class="chart-stats">
-          <span class="stat">High: <span id="chart-high">-</span></span>
-          <span class="stat">Low: <span id="chart-low">-</span></span>
-          <span class="stat">Avg: <span id="chart-avg">-</span></span>
-        </div>
-      </div>
-    </div>
 
-    <div class="chart-container secondary-chart">
-      <div class="chart-header">
-        <h3>Holder Adoption Trends</h3>
-        <div class="chart-badges">
-          <span class="badge live">● Live</span>
-        </div>
-      </div>
-      <div class="chart-wrapper">
-        <canvas id="globalHoldersChart" aria-label="Holder adoption trends chart"></canvas>
-      </div>
-    </div>
-  </div>
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border border-purple-500/30 rounded-2xl p-8">
+                <form class="space-y-6">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Token 1</label>
+                            <div class="relative">
+                                <select class="w-full px-4 py-3 bg-black/30 border border-purple-500/30 rounded-lg text-white focus:border-purple-400 focus:outline-none">
+                                    <option>Bitcoin (BTC)</option>
+                                    <option>Ethereum (ETH)</option>
+                                    <option>Solana (SOL)</option>
+                                    <option>Cardano (ADA)</option>
+                                    <option>Dogecoin (DOGE)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Token 2</label>
+                            <div class="relative">
+                                <select class="w-full px-4 py-3 bg-black/30 border border-purple-500/30 rounded-lg text-white focus:border-purple-400 focus:outline-none">
+                                    <option>Ethereum (ETH)</option>
+                                    <option>Bitcoin (BTC)</option>
+                                    <option>Solana (SOL)</option>
+                                    <option>Cardano (ADA)</option>
+                                    <option>Dogecoin (DOGE)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
-  <!-- Mini Charts Row -->
-  <div class="mini-charts">
-    <div class="mini-chart">
-      <h4>Volume Analysis</h4>
-      <canvas id="volumeChart" width="200" height="80"></canvas>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Battle Duration</label>
+                        <div class="grid grid-cols-3 gap-4">
+                            <button type="button" class="battle-duration-btn px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-500/30 transition-all duration-200">1 Hour</button>
+                            <button type="button" class="battle-duration-btn px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-500/30 transition-all duration-200">4 Hours</button>
+                            <button type="button" class="battle-duration-btn px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 hover:bg-purple-500/30 transition-all duration-200">24 Hours</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Prize Pool (USDC)</label>
+                        <div class="relative">
+                            <input type="number" placeholder="Enter prize pool amount" class="w-full px-4 py-3 bg-black/30 border border-purple-500/30 rounded-lg text-white focus:border-purple-400 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Battle Rules</label>
+                        <textarea placeholder="Describe your battle rules..." rows="3" class="w-full px-4 py-3 bg-black/30 border border-purple-500/30 rounded-lg text-white focus:border-purple-400 focus:outline-none resize-none"></textarea>
+                    </div>
+
+                    <button type="submit" class="w-full btn btn-primary btn-lg py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200">
+                        Create Battle ⚔️
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
-    <div class="mini-chart">
-      <h4>Market Sentiment</h4>
-      <canvas id="sentimentChart" width="200" height="80"></canvas>
-    </div>
-    <div class="mini-chart">
-      <h4>Network Health</h4>
-      <canvas id="networkChart" width="200" height="80"></canvas>
-    </div>
-  </div>
 </section>
 
-<!-- Advanced Trading Interface -->
-<section class="trading-interface" id="trading-view">
-  <div class="section-header">
-    <h2>⚔️ Advanced Trading Interface</h2>
-    <p class="section-subtitle">Professional tools for serious traders</p>
-  </div>
-
-  <!-- Top Movers & Market Heatmap -->
-  <div class="trading-header">
-    <div class="top-movers-advanced">
-      <div class="movers-header">
-        <h3>🔥 Market Movers</h3>
-        <div class="movers-controls">
-          <div class="segmented compact" id="movers-metric">
-            <div class="btn active" data-metric="change_24h">24h</div>
-            <div class="btn" data-metric="r7">7D</div>
-            <div class="btn" data-metric="r7_sharpe">Sharpe</div>
-            <div class="btn" data-metric="holders_growth_pct_24h">Holders</div>
-            <div class="btn" data-metric="share_delta_7d">Share Δ</div>
-            <div class="btn" data-metric="composite">Composite</div>
-          </div>
+<!-- Battle History Section -->
+<section class="py-20">
+    <div class="container-fluid">
+        <div class="text-center mb-16">
+            <h2 class="text-4xl md:text-5xl font-bold mb-4">Recent Battle Results</h2>
+            <p class="text-xl text-gray-400">Learn from past battles and winning strategies</p>
         </div>
-      </div>
-      <div id="top-movers" class="movers-heatmap"></div>
+
+        <div class="max-w-4xl mx-auto space-y-4">
+            <!-- Battle Result 1 -->
+            <div class="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="text-3xl">🏆</div>
+                        <div>
+                            <div class="font-bold text-lg">BTC vs ETH</div>
+                            <div class="text-sm text-gray-400">Completed 2 hours ago</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-green-400 font-bold">BTC Won (+15%)</div>
+                        <div class="text-sm text-gray-400">$50,000 prize pool</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Battle Result 2 -->
+            <div class="bg-gradient-to-r from-green-900/20 to-blue-900/20 border border-green-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="text-3xl">🏆</div>
+                        <div>
+                            <div class="font-bold text-lg">SOL vs ADA</div>
+                            <div class="text-sm text-gray-400">Completed 5 hours ago</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-green-400 font-bold">SOL Won (+22%)</div>
+                        <div class="text-sm text-gray-400">$25,000 prize pool</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Battle Result 3 -->
+            <div class="bg-gradient-to-r from-red-900/20 to-yellow-900/20 border border-red-500/30 rounded-xl p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="text-3xl">🏆</div>
+                        <div>
+                            <div class="font-bold text-lg">DOGE vs SHIB</div>
+                            <div class="text-sm text-gray-400">Completed 8 hours ago</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-green-400 font-bold">DOGE Won (+8%)</div>
+                        <div class="text-sm text-gray-400">$15,000 prize pool</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-
-    <!-- Market Heatmap -->
-    <div class="market-heatmap">
-      <h3>🌡️ Market Heatmap</h3>
-      <div class="heatmap-grid" id="market-heatmap">
-        <div class="heatmap-loading">Loading heatmap...</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Advanced Filters & Search -->
-  <div class="advanced-filters">
-    <div class="filters-container">
-      <div class="search-section">
-        <div class="search-input-wrapper">
-          <input id="tokens-filter" class="search-input advanced" type="search" placeholder="Search tokens, symbols, or contracts..." autocomplete="off" />
-          <div class="search-suggestions" id="search-suggestions"></div>
-        </div>
-      </div>
-
-      <div class="filters-grid">
-        <div class="filter-group">
-          <label class="filter-label">Min Market Cap</label>
-          <select id="min-mcap-filter" class="filter-select">
-            <option value="">Any</option>
-            <option value="1000">$1K+</option>
-            <option value="10000">$10K+</option>
-            <option value="100000">$100K+</option>
-            <option value="1000000">$1M+</option>
-            <option value="10000000">$10M+</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">Min Volume 24h</label>
-          <select id="min-volume-filter" class="filter-select">
-            <option value="">Any</option>
-            <option value="100">$100+</option>
-            <option value="1000">$1K+</option>
-            <option value="10000">$10K+</option>
-            <option value="100000">$100K+</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">Category</label>
-          <select id="category-filter" class="filter-select">
-            <option value="">All Categories</option>
-            <option value="defi">DeFi</option>
-            <option value="nft">NFT</option>
-            <option value="gaming">Gaming</option>
-            <option value="utility">Utility</option>
-            <option value="privacy">Privacy</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">Risk Level</label>
-          <select id="risk-filter" class="filter-select">
-            <option value="">All Risk Levels</option>
-            <option value="low">Low Risk</option>
-            <option value="medium">Medium Risk</option>
-            <option value="high">High Risk</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">Sort By</label>
-          <div class="segmented compact" id="sort-controls">
-            <div class="btn active" data-sort="market_cap_usd">Market Cap</div>
-            <div class="btn" data-sort="change_24h">24h Change</div>
-            <div class="btn" data-sort="holders_count">Holders</div>
-            <div class="btn" data-sort="composite">Composite</div>
-          </div>
-        </div>
-
-        <div class="filter-group">
-          <label class="filter-label">Actions</label>
-          <div class="filter-actions">
-            <button class="btn btn-outline" id="export-csv">📊 Export</button>
-            <button class="btn btn-outline" id="save-view">💾 Save View</button>
-            <button class="btn btn-ghost" id="reset-filters">🔄 Reset</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Enhanced Data Table -->
-  <div class="data-table-section">
-    <div class="table-header">
-      <h3>📋 Professional Token Data</h3>
-      <div class="table-controls">
-        <div class="view-toggle">
-          <div class="segmented compact" id="table-view">
-            <div class="btn active" data-view="table">Table</div>
-            <div class="btn" data-view="cards">Cards</div>
-            <div class="btn" data-view="compact">Compact</div>
-          </div>
-        </div>
-        <div class="rows-select">
-          <label>Show:</label>
-          <select id="page-size">
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <div class="table-wrapper professional">
-      <table class="tokens-table enhanced" aria-label="Professional token data">
-        <thead>
-          <tr>
-            <th class="rank-col">#</th>
-            <th class="token-col sortable" data-key="symbol">
-              <span>Token</span>
-              <span class="sort-arrow">▼</span>
-            </th>
-            <th class="price-col sortable" data-key="price_usd">
-              <span>Price</span>
-              <span class="sort-arrow">▼</span>
-            </th>
-            <th class="chart-col">7D Chart</th>
-            <th class="market-cap-col sortable" data-key="market_cap_usd">
-              <span>Market Cap</span>
-              <span class="sort-arrow">▼</span>
-            </th>
-            <th class="holders-col sortable" data-key="holders_count">
-              <span>Holders</span>
-              <span class="sort-arrow">▼</span>
-            </th>
-            <th class="change-col sortable" data-key="change_24h">
-              <span>24h</span>
-              <span class="sort-arrow">▼</span>
-            </th>
-            <th class="metric-col sortable" data-metric="metric">
-              <span id="metric-col-label">Metric</span>
-              <span class="sort-arrow">▼</span>
-            </th>
-            <th class="actions-col">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="tokens-tbody"></tbody>
-      </table>
-    </div>
-
-    <div class="pagination-wrapper">
-      <div class="pagination" id="tokens-pagination"></div>
-    </div>
-  </div>
 </section>
-
-<!-- News & Social Section -->
-<section class="news-social-section">
-  <div class="section-header">
-    <h2>📰 Market News & Social Sentiment</h2>
-    <p class="section-subtitle">Stay informed with real-time updates and community insights</p>
-  </div>
-
-  <div class="news-social-grid">
-    <div class="news-panel">
-      <div class="panel-header">
-        <h3>📰 Latest News</h3>
-        <div class="news-controls">
-          <div class="segmented compact" id="news-category">
-            <div class="btn active" data-category="all">All</div>
-            <div class="btn" data-category="defi">DeFi</div>
-            <div class="btn" data-category="technical">Technical</div>
-            <div class="btn" data-category="adoption">Adoption</div>
-          </div>
-        </div>
-      </div>
-      <div class="news-content" id="news-content">
-        <div class="news-loading">Loading latest news...</div>
-      </div>
-    </div>
-
-    <div class="social-panel">
-      <div class="panel-header">
-        <h3>💬 Social Sentiment</h3>
-        <div class="sentiment-indicator">
-          <span class="sentiment-label">Overall:</span>
-          <span class="sentiment-value positive" id="overall-sentiment">Positive</span>
-          <div class="sentiment-bar">
-            <div class="sentiment-fill positive" style="width: 75%"></div>
-          </div>
-        </div>
-      </div>
-      <div class="social-content" id="social-content">
-        <div class="social-loading">Loading social data...</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Price Alerts Section -->
-<section class="alerts-section" id="alerts">
-  <div class="section-header">
-    <h2>🔔 Price Alerts & Notifications</h2>
-    <p class="section-subtitle">Never miss important price movements</p>
-  </div>
-
-  <div class="alerts-container">
-    <div class="active-alerts">
-      <h3>Active Alerts</h3>
-      <div class="alerts-list" id="active-alerts">
-        <div class="no-alerts">No active alerts. Create one below!</div>
-      </div>
-    </div>
-
-    <div class="create-alert">
-      <h3>Create New Alert</h3>
-      <div class="alert-form">
-        <div class="form-group">
-          <label>Token Symbol</label>
-          <input id="alert-symbol" class="form-input" placeholder="e.g., BTC, ETH" />
-        </div>
-        <div class="form-group">
-          <label>Alert Type</label>
-          <select id="alert-type" class="form-select">
-            <option value="price_above">Price Above</option>
-            <option value="price_below">Price Below</option>
-            <option value="percent_change">Percent Change</option>
-            <option value="volume_spike">Volume Spike</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Target Value</label>
-          <input id="alert-value" class="form-input" type="number" step="0.01" placeholder="Target price or percentage" />
-        </div>
-        <button class="btn btn-cta" id="create-alert">Create Alert</button>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- What's New & Updates -->
-<section class="updates-section">
-  <div class="section-header">
-    <h2>🔔 What's New</h2>
-    <p class="section-subtitle">Latest features and improvements</p>
-  </div>
-  <div id="whats-new-list" class="updates-grid"></div>
-</section>
-
-<style>
-  /* Advanced Hero Section */
-  .trading-hero {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(135deg, rgba(124,92,255,0.15) 0%, rgba(0,209,178,0.15) 100%);
-    border-radius: 20px;
-    margin-bottom: 32px;
-    padding: 40px;
-  }
-  .trading-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(124,92,255,0.25);
-    border: 1px solid rgba(124,92,255,0.4);
-    border-radius: 24px;
-    padding: 8px 20px;
-    margin-bottom: 20px;
-  }
-  .hero-stats-advanced {
-    margin-top: 32px;
-    display: flex;
-    justify-content: center;
-  }
-  .stat-cluster {
-    display: flex;
-    gap: 32px;
-    background: rgba(255,255,255,0.05);
-    border-radius: 16px;
-    padding: 24px;
-    backdrop-filter: blur(10px);
-  }
-  .stat-item {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .stat-item .stat-value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--text);
-  }
-  .stat-item .stat-label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-  }
-  .stat-item .stat-change {
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  .stat-item .stat-change.positive { color: #00d1b2; }
-  .stat-item .stat-change.negative { color: #ff5c7c; }
-  .stat-item .stat-change.neutral { color: var(--text-secondary); }
-
-  /* Market Ticker */
-  .market-ticker {
-    background: linear-gradient(90deg, rgba(124,92,255,0.1), rgba(0,209,178,0.1));
-    border-top: 1px solid rgba(124,92,255,0.2);
-    border-bottom: 1px solid rgba(124,92,255,0.2);
-    overflow: hidden;
-    margin-bottom: 32px;
-  }
-  .ticker-wrapper {
-    position: relative;
-    height: 40px;
-    overflow: hidden;
-  }
-  .ticker-content {
-    display: flex;
-    align-items: center;
-    height: 100%;
-    animation: ticker 60s linear infinite;
-  }
-  @keyframes ticker {
-    0% { transform: translateX(100%); }
-    100% { transform: translateX(-100%); }
-  }
-
-  /* KPI Grid */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 20px;
-    margin-bottom: 32px;
-  }
-  .kpi-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    transition: all 0.3s ease;
-  }
-  .kpi-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent);
-    box-shadow: 0 8px 25px rgba(124,92,255,0.15);
-  }
-  .kpi-card.primary {
-    border-color: var(--accent);
-    background: linear-gradient(135deg, rgba(124,92,255,0.05), rgba(0,209,178,0.05));
-  }
-  .kpi-icon {
-    font-size: 2rem;
-    opacity: 0.8;
-  }
-  .kpi-content {
-    flex: 1;
-  }
-  .kpi-label {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-bottom: 4px;
-  }
-  .kpi-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 6px;
-  }
-  .kpi-change {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.8rem;
-    font-weight: 600;
-  }
-  .trend-arrow {
-    font-size: 0.9rem;
-  }
-  .trend-value.positive { color: #00d1b2; }
-  .trend-value.negative { color: #ff5c7c; }
-
-  /* Chart Controls */
-  .chart-controls {
-    display: flex;
-    justify-content: center;
-    gap: 32px;
-    margin-bottom: 32px;
-    flex-wrap: wrap;
-  }
-  .control-group {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-  }
-  .control-label {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-  }
-
-  /* Advanced Charts */
-  .charts-grid.advanced {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 24px;
-    margin-bottom: 32px;
-  }
-  .chart-container {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-  }
-  .main-chart {
-    position: relative;
-  }
-  .chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-  .chart-badges {
-    display: flex;
-    gap: 8px;
-  }
-  .badge {
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  .badge.live {
-    background: rgba(0,209,178,0.2);
-    color: #00d1b2;
-  }
-  .badge.timeframe {
-    background: rgba(124,92,255,0.2);
-    color: #7c5cff;
-  }
-  .chart-wrapper {
-    position: relative;
-    height: 300px;
-  }
-  .chart-footer {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-  }
-  .chart-stats {
-    display: flex;
-    justify-content: space-around;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-  }
-  .chart-stats .stat {
-    display: flex;
-    gap: 4px;
-  }
-
-  /* Mini Charts */
-  .mini-charts {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-  }
-  .mini-chart {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    text-align: center;
-  }
-  .mini-chart h4 {
-    margin: 0 0 12px;
-    font-size: 0.9rem;
-    color: var(--text);
-  }
-
-  /* Trading Interface */
-  .trading-header {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    margin-bottom: 32px;
-  }
-  .top-movers-advanced {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-  }
-  .movers-heatmap {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-    margin-top: 16px;
-  }
-  .market-heatmap {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-  }
-  .heatmap-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
-    margin-top: 16px;
-  }
-
-  /* Advanced Filters */
-  .advanced-filters {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-    margin-bottom: 32px;
-  }
-  .search-input-wrapper {
-    position: relative;
-    margin-bottom: 20px;
-  }
-  .search-input.advanced {
-    width: 100%;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 1rem;
-  }
-  .search-suggestions {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    max-height: 200px;
-    overflow-y: auto;
-    z-index: 100;
-  }
-  .filters-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-  }
-  .filter-select {
-    width: 100%;
-    padding: 8px 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-  }
-  .filter-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  /* Professional Table */
-  .data-table-section {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-  }
-  .table-wrapper.professional {
-    overflow-x: auto;
-  }
-  .tokens-table.enhanced th {
-    background: rgba(124,92,255,0.1);
-    border-bottom: 2px solid var(--accent);
-    padding: 16px 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    position: sticky;
-    top: 0;
-  }
-  .tokens-table.enhanced td {
-    padding: 16px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-  }
-  .actions-col {
-    width: 120px;
-  }
-
-  /* News & Social */
-  .news-social-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-  .news-panel, .social-panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-  }
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-  .sentiment-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
-  }
-  .sentiment-bar {
-    width: 60px;
-    height: 6px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-  .sentiment-fill {
-    height: 100%;
-    transition: width 0.3s ease;
-  }
-  .sentiment-fill.positive { background: #00d1b2; }
-  .sentiment-fill.negative { background: #ff5c7c; }
-  .sentiment-fill.neutral { background: var(--text-secondary); }
-
-  /* Alerts Section */
-  .alerts-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-  }
-  .active-alerts, .create-alert {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-  }
-  .alert-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .form-group label {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-  }
-  .form-input, .form-select {
-    padding: 10px 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-size: 0.9rem;
-  }
-
-  /* Updates Grid */
-  .updates-grid {
-    display: grid;
-    gap: 16px;
-  }
-
-  /* Responsive Design */
-  @media (max-width: 1200px) {
-    .charts-grid.advanced {
-      grid-template-columns: 1fr;
-    }
-    .trading-header {
-      grid-template-columns: 1fr;
-    }
-  }
-  @media (max-width: 920px) {
-    .news-social-grid {
-      grid-template-columns: 1fr;
-    }
-    .alerts-container {
-      grid-template-columns: 1fr;
-    }
-    .chart-controls {
-      flex-direction: column;
-      gap: 20px;
-    }
-    .stat-cluster {
-      flex-direction: column;
-      gap: 16px;
-    }
-  }
-  @media (max-width: 640px) {
-    .kpi-grid {
-      grid-template-columns: 1fr;
-    }
-    .filters-grid {
-      grid-template-columns: 1fr;
-    }
-    .trading-hero {
-      padding: 24px;
-    }
-  }
-</style>
 {% endblock %}
